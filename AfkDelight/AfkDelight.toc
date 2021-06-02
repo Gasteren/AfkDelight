@@ -1,0 +1,10 @@
+## Interface: 70300
+## Title: |cff00ccffAfkDelight by Frost/Frostanon
+## Version: 2.0
+## Notes: Just a beautifull afk screen while you are /afk
+## Author: Frost-Xavius | Carlos | Frostanon
+## X-Website: Wicked-Demise.com
+## License: http://creativecommons.org/licenses/by-nc-sa/2.5
+## LegalCode: http://creativecommons.org/licenses/by-nc-sa/2.5/legalcode
+
+AfkDelight.lua
