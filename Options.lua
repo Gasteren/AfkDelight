@@ -1,6 +1,6 @@
 --[[
 	AfkDelight - Options.lua
-	By Frost-Xavius (Carlos / Frostanon)
+	By Frost-Lightbringer
 	License: http://creativecommons.org/licenses/by-nc-sa/2.5
 	LegalCode: http://creativecommons.org/licenses/by-nc-sa/2.5/legalcode
 
@@ -133,10 +133,6 @@ function Options:Init()
 	local function IsWorld()
 		return db.background == "WORLD"
 	end
-	local function HasNightSky()
-		return db.background == "AZEROTH" or db.background == "GALAXY"
-	end
-	DependsOn(Checkbox(category, "dragonFlyby", L.OPT_FLYBY, L.OPT_FLYBY_TT), background, HasNightSky)
 	DependsOn(Slider(category, "worldDim", L.OPT_WORLD_DIM, L.OPT_WORLD_DIM_TT, 5, Percent), background, IsWorld)
 	DependsOn(Checkbox(category, "cameraSpin", L.OPT_CAMERA_SPIN, L.OPT_CAMERA_SPIN_TT), background, IsWorld)
 

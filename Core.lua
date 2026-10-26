@@ -1,6 +1,6 @@
 --[[
 	AfkDelight - Core.lua
-	By Frost-Xavius (Carlos / Frostanon)
+	By Frost-Lightbringer
 	License: http://creativecommons.org/licenses/by-nc-sa/2.5
 	LegalCode: http://creativecommons.org/licenses/by-nc-sa/2.5/legalcode
 
@@ -43,7 +43,7 @@ ns.isForever = (_G.WOW_PROJECT_CAMELOT ~= nil and _G.WOW_PROJECT_ID == _G.WOW_PR
 ns.BACKGROUNDS = { "GALAXY", "AZEROTH", "STARFIELD", "WORLD", "SOLID" }
 ns.ANIMATIONS = { "RANDOM", "STAND", "DANCE", "TALK" }
 
-local DB_VERSION = 2
+local DB_VERSION = 3
 
 ns.defaults = {
 	enabled = true,
@@ -52,12 +52,10 @@ ns.defaults = {
 	dismissOnPopups = true,
 	showSummary = true,
 
-	-- WoW Forever has no galaxy model, so it starts with Azeroth and her moons.
+	-- WoW Forever has no galaxy model, so it starts with Azeroth.
 	background = ns.isForever and "AZEROTH" or "GALAXY",
 	worldDim = 40,
 	cameraSpin = true,
-	-- Creature flybys (kept under its earlier name, so existing settings carry over).
-	dragonFlyby = true,
 	showModel = true,
 	animation = "RANDOM",
 	introWave = true,
@@ -96,12 +94,16 @@ function ns:InitDB()
 	local db = _G.AfkDelightDB
 
 	-- Settings version 2 (from the WoW Forever beta builds): the screen only closes with Escape or the Close
-	-- button, and WoW Forever (which has no galaxy model) switches to Azeroth and her moons.
+	-- button, and WoW Forever (which has no galaxy model) switches to Azeroth.
 	if (tonumber(db.dbVersion) or 0) < 2 then
 		db.dismissOnInput = nil
 		if self.isForever and db.background == "GALAXY" then
 			db.background = "AZEROTH"
 		end
+	end
+	-- Settings version 3: creature flybys were removed, and their setting with them.
+	if (tonumber(db.dbVersion) or 0) < 3 then
+		db.dragonFlyby = nil
 	end
 
 	for key, default in pairs(self.defaults) do

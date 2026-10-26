@@ -21,9 +21,9 @@ read_globals = {
 	"CreateSettingsListSectionHeaderInitializer", "FlashClientIcon", "GameTooltip", "GetAverageItemLevel",
 	"GetBattlefieldStatus", "GetBindingByKey", "GetBuildInfo", "GetCurrentTitle", "GetGuildInfo", "GetLocale",
 	"GetMaxLevelForPlayerExpansion", "GetMoney", "GetPlayerInfoByGUID", "GetRealZoneText", "GetSpecialization",
-	"GetSpecializationInfo", "GetSubZoneText", "GetTime", "IsShiftKeyDown", "CreateVector3D", "GetTitleName", "GetXPExhaustion", "GetZoneText",
+	"GetSpecializationInfo", "GetSubZoneText", "GetTime", "IsShiftKeyDown", "GetTitleName", "GetXPExhaustion", "GetZoneText",
 	"InCombatLockdown", "IsInGuild", "IsInInstance", "IsResting", "IsXPUserDisabled",
 	"MinimalSliderWithSteppersMixin", "Settings", "UIParent", "UnitAffectingCombat", "UnitCastingInfo",
-	"UnitChannelInfo", "UnitClass", "UnitFactionGroup", "UnitIsAFK", "UnitLevel", "UnitName", "UnitRace", "UnitXP", "UnitXPMax",
+	"UnitChannelInfo", "UnitClass", "UnitIsAFK", "UnitLevel", "UnitName", "UnitRace", "UnitXP", "UnitXPMax",
 	"date", "geterrorhandler", "strtrim",
 }

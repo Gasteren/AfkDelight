@@ -1,6 +1,6 @@
 --[[
 	AfkDelight - Locales.lua
-	By Frost-Xavius (Carlos / Frostanon)
+	By Frost-Lightbringer
 	License: http://creativecommons.org/licenses/by-nc-sa/2.5
 
 	English strings live here. Wherever the game already ships a translated string
@@ -58,7 +58,7 @@ L.MSG_ENABLED = "AFK screen enabled."
 L.MSG_DISABLED = "AFK screen disabled."
 L.MSG_RESET = "All settings were reset to their defaults."
 L.MSG_COMBAT = "That isn't available during combat."
-L.MSG_GALAXY_FALLBACK = "The galaxy model isn't available in this version of the game, so Azeroth and her moons are shown instead."
+L.MSG_GALAXY_FALLBACK = "The galaxy model isn't available in this version of the game, so Azeroth is shown instead."
 L.MSG_NO_SETTINGS = "The options panel isn't available. Type /afkd help for commands."
 L.HELP_HEADER = "Commands:"
 L.HELP_OPTIONS = "%s - open the options"
@@ -96,11 +96,9 @@ L.OPT_APPEARANCE = G.APPEARANCE_LABEL or "Appearance"
 L.OPT_BACKGROUND = "Background"
 L.OPT_BACKGROUND_TT = "Choose what is shown behind your character."
 L.BG_GALAXY = "Galaxy (classic AfkDelight)"
-L.BG_GALAXY_TT = "The original AfkDelight look: a galaxy over a twinkling starfield. Where the galaxy model doesn't exist (WoW Forever), Azeroth and her moons are shown instead."
-L.BG_AZEROTH = "Azeroth and her moons"
-L.BG_AZEROTH_TT = "Azeroth with the White Lady and the Blue Child over a twinkling starfield, painted with the game's own sky textures."
-L.OPT_FLYBY = "Creature flybys"
-L.OPT_FLYBY_TT = "Every minute or two a classic creature crosses the sky: Onyxia, your faction's gryphon or wind rider, a white hippogryph, a green dragon of the Emerald Dream or a faerie dragon."
+L.BG_GALAXY_TT = "The original AfkDelight look: a galaxy over a twinkling starfield. Where the galaxy model doesn't exist (WoW Forever), Azeroth is shown instead."
+L.BG_AZEROTH = "Azeroth"
+L.BG_AZEROTH_TT = "Azeroth over a twinkling starfield, painted with the game's own sky texture."
 L.BG_STARFIELD = "Animated starfield"
 L.BG_STARFIELD_TT = "Twinkling stars and the odd shooting star."
 L.BG_WORLD = "Game world"
