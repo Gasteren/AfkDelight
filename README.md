@@ -1,3 +1,5 @@
+  [![Buy me a Coffee](https://img.irosec.com/u/NSHY9f.png)](https://github.com/sponsors/Gasteren)
+
 # AfkDelight
 
 A beautiful screen while you are `/afk`: your character in the spotlight in front of a galaxy, plus everything you
@@ -83,9 +85,11 @@ The easiest way is the CurseForge app. To install by hand:
 1. Exit World of Warcraft (or be ready to `/reload`).
 2. Download AfkDelight from [CurseForge](https://www.curseforge.com/wow/addons/afkdelight) and copy the `AfkDelight`
    folder from the zip into the game's AddOns folder:
-   * Retail: `World of Warcraft\_retail_\Interface\AddOns\`
-   * WoW Forever: the client folder name may change at launch, so let the launcher show it. In the Battle.net
+
+    - Retail: `World of Warcraft\_retail_\Interface\AddOns\`
+    - WoW Forever: the client folder name may change at launch, so let the launcher show it. In the Battle.net
      app, select World of Warcraft: Forever, click the gear next to Play, choose **Show in Explorer** (Finder on
      Mac), then open `Interface\AddOns\` inside that folder.
+
 3. Make sure the folder is `Interface\AddOns\AfkDelight\AfkDelight.toc` (not nested twice).
 4. Start the game and enable AfkDelight in the AddOn list on the character select screen.
