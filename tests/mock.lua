@@ -712,7 +712,7 @@ C_Texture = { GetAtlasInfo = function(atlas) if type(atlas) == "string" and atla
 C_ChatInfo = { InChatMessagingLockdown = function() return S.lockdown end }
 C_PetBattles = { IsInBattle = function() return S.petBattle end }
 C_EventUtils = { IsEventValid = function(event) return validEvents[event] == true end }
-C_AddOns = { GetAddOnMetadata = function(name, field) assert(name == "AfkDelight"); if field == "Version" then return "3.2.0" end end }
+C_AddOns = { GetAddOnMetadata = function(name, field) assert(name == "AfkDelight"); if field == "Version" then return "1.0.0" end end }
 C_PlayerInfo = { ShouldDisplaySurname = function() return S.showSurname end }
 
 function UnitIsAFK(unit) assert(unit == "player"); if S.afkValue ~= nil then return S.afkValue end; return S.afk end

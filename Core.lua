@@ -28,7 +28,7 @@ local issecretvalue = _G.issecretvalue or function() return false end
 ns.issecretvalue = issecretvalue
 
 ns.title = "|cff00ccffAfkDelight|r"
-ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")) or "3.2.0"
+ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")) or "1.0.0"
 
 local tocVersion = select(4, GetBuildInfo()) or 0
 ns.tocVersion = tocVersion
@@ -56,7 +56,7 @@ ns.defaults = {
 	background = ns.isForever and "AZEROTH" or "GALAXY",
 	worldDim = 40,
 	cameraSpin = true,
-	-- Creature flybys (kept under its 3.1 name, so existing settings carry over).
+	-- Creature flybys (kept under its earlier name, so existing settings carry over).
 	dragonFlyby = true,
 	showModel = true,
 	animation = "RANDOM",
@@ -95,8 +95,8 @@ function ns:InitDB()
 	end
 	local db = _G.AfkDelightDB
 
-	-- 3.1: the screen now only closes with Escape or the Close button, and WoW Forever
-	-- (which has no galaxy model) switches to Azeroth and her moons.
+	-- Settings version 2 (from the WoW Forever beta builds): the screen only closes with Escape or the Close
+	-- button, and WoW Forever (which has no galaxy model) switches to Azeroth and her moons.
 	if (tonumber(db.dbVersion) or 0) < 2 then
 		db.dismissOnInput = nil
 		if self.isForever and db.background == "GALAXY" then

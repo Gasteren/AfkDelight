@@ -736,7 +736,7 @@ step("slash commands", function()
 	check(#H.opened == 2, "options command is case-insensitive")
 	before = #H.printed
 	SlashCmdList.AFKDELIGHT("status")
-	check(printedSince(before, "Version 3.2.0, World of Warcraft (Retail) (interface 120105). Screen enabled. AFK status: No."), "status " .. tostring(H.printed[#H.printed]))
+	check(printedSince(before, "Version 1.0.0, World of Warcraft (Retail) (interface 120105). Screen enabled. AFK status: No."), "status " .. tostring(H.printed[#H.printed]))
 	before = #H.printed
 	SlashCmdList.AFKDELIGHT("whatever")
 	check(printedSince(before, "/afkd test"), "help")
@@ -908,10 +908,10 @@ end)
 elseif scenario == "upgrade" then
 ------------------------------------------------------------------------
 
--- Saved variables written by 3.0.0 on the Forever beta.
+-- Saved variables written by an early test build on the WoW Forever beta (settings version 1).
 AfkDelightDB = { dbVersion = 1, enabled = true, background = "GALAXY", dismissOnInput = true, delay = 5, cameraSpinActive = false }
 
-step("3.0 settings are upgraded on WoW Forever", function()
+step("early beta settings are upgraded on WoW Forever", function()
 	Load()
 	check(ns.db.dbVersion == 2, "settings version bumped")
 	check(ns.db.dismissOnInput == nil, "close-on-any-key setting removed")

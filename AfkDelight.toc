@@ -3,7 +3,7 @@
 ## Notes: A beautiful, configurable screen while you are /afk. Supports World of Warcraft: Midnight and World of Warcraft: Forever.
 ## Author: Frost-Xavius | Carlos | Frostanon
 ## X-Curse-Project-ID: 103055
-## Version: 3.2.0
+## Version: 1.0.0
 ## Category: User Interface
 ## Category-deDE: Benutzerinterface
 ## Category-esES: Interfaz de usuario
