@@ -89,8 +89,3 @@ The easiest way is the CurseForge app. To install by hand:
      Mac), then open `Interface\AddOns\` inside that folder.
 3. Make sure the folder is `Interface\AddOns\AfkDelight\AfkDelight.toc` (not nested twice).
 4. Start the game and enable AfkDelight in the AddOn list on the character select screen.
-
-## License
-
-Creative Commons Attribution-NonCommercial-ShareAlike 2.5 -
-<http://creativecommons.org/licenses/by-nc-sa/2.5> ([legal code](http://creativecommons.org/licenses/by-nc-sa/2.5/legalcode)).
