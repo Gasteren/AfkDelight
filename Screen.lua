@@ -5,7 +5,7 @@
 	LegalCode: http://creativecommons.org/licenses/by-nc-sa/2.5/legalcode
 
 	Builds and animates the AFK screen:
-	  backdrop -> stars -> Azeroth -> galaxy -> shading -> character -> texts, messages and Close button
+	  backdrop -> stars -> spinning Azeroth -> shading -> character -> texts, messages and Close button
 ]]
 
 local _, ns = ...
@@ -25,15 +25,13 @@ local format, strlower = string.format, string.lower
 local date = date
 local GetTime = GetTime
 
--- The original AfkDelight galaxy: the Legion star map ("7lg_legion_starmap01.m2").
-local GALAXY_DISPLAY_ID = 67918
-local GALAXY_MODEL_FILE = 1305790
-
--- Azeroth, painted with a sky texture that ships with both Retail and WoW Forever
--- (File ID from environments/stars). Positions are fractions of the screen, sizes of the screen height.
+-- Azeroth, painted with environments/stars/moon.blp: Retail ships it at 512x512, WoW Forever a remastered
+-- 2048x2048 version. Positions are fractions of the screen, sizes of the screen height. She turns
+-- counter-clockwise, the way the Maelstrom's spiral arms trail, so the whirlpool looks like it is spinning.
 local BODIES = {
-	{ -- Azeroth (moon.blp: oceans, continents and the Maelstrom)
+	{ -- Azeroth (oceans, continents and the Maelstrom)
 		texture = 130561, x = 0.42, y = 0.5, size = 0.42, drift = 8,
+		turn = 120, -- seconds per turn
 	},
 }
 -- Faint coloured stars from the game's own night sky (starrynight.blp), tiled across the screen.
@@ -269,17 +267,6 @@ function Screen:Create()
 		self.bodies[index] = self:CreateBody(definition)
 	end
 
-	local galaxy = CreateFrame("PlayerModel", nil, frame)
-	galaxy:SetAllPoints()
-	galaxy:SetFrameLevel(level + 5)
-	if galaxy.HasScript and galaxy:HasScript("OnModelLoaded") then
-		galaxy:SetScript("OnModelLoaded", function()
-			Screen.galaxyVerified = true
-		end)
-	end
-	galaxy:Hide()
-	self.galaxy = galaxy
-
 	local shade = CreateFrame("Frame", nil, frame)
 	shade:SetAllPoints()
 	shade:SetFrameLevel(level + 7)
@@ -405,7 +392,8 @@ function Screen:CreateStarfield()
 	end
 end
 
--- A body in the night sky. Its texture already has a transparent edge and a soft rim, so no mask is needed.
+-- A body in the night sky. Its texture already has a transparent edge and a soft rim, so no mask is needed,
+-- even while it turns.
 function Screen:CreateBody(definition)
 	local body = CreateFrame("Frame", nil, self.sky)
 	body.definition = definition
@@ -414,6 +402,16 @@ function Screen:CreateBody(definition)
 	surface:SetAllPoints()
 	surface:SetTexture(definition.texture)
 	body.surface = surface
+
+	if definition.turn then
+		local spin = surface:CreateAnimationGroup()
+		spin:SetLooping("REPEAT")
+		local turn = spin:CreateAnimation("Rotation")
+		turn:SetOrigin("CENTER", 0, 0)
+		turn:SetDegrees(360) -- positive is counter-clockwise
+		turn:SetDuration(definition.turn)
+		body.spin = spin
+	end
 	return body
 end
 
@@ -967,64 +965,30 @@ function Screen:SetSkyShown(shown)
 	end
 	self.skyShown = shown
 	self.sky:SetShown(shown)
+	for _, body in ipairs(self.bodies) do
+		if body.spin then
+			if shown then
+				body.spin:Play()
+			else
+				body.spin:Stop()
+			end
+		end
+	end
 end
 
 function Screen:ApplyBackground()
 	local mode = ns.db.background
-	self.mode = mode
 
 	self.backdrop:SetColorTexture(0, 0, 0, mode == "WORLD" and (ns.db.worldDim / 100) or 1)
-	local stars = mode == "GALAXY" or mode == "AZEROTH" or mode == "STARFIELD"
+	local stars = mode == "AZEROTH" or mode == "STARFIELD"
 	self.starfield:SetShown(stars)
 	self:SetStarsAnimating(stars)
-	-- Azeroth also stands in for the galaxy where that model doesn't exist (WoW Forever).
-	self:SetSkyShown(mode == "AZEROTH" or (mode == "GALAXY" and self.galaxyUnavailable == true))
-
-	if mode == "GALAXY" and not self.galaxyUnavailable then
-		self:LoadGalaxy()
-	else
-		self.galaxy:Hide()
-	end
+	self:SetSkyShown(mode == "AZEROTH")
 
 	if mode == "WORLD" then
 		self:BeginWorldMode()
 	else
 		self:EndWorldMode()
-	end
-end
-
-function Screen:LoadGalaxy()
-	local galaxy = self.galaxy
-	galaxy:Show()
-	pcall(galaxy.SetDisplayInfo, galaxy, GALAXY_DISPLAY_ID)
-	galaxy:SetCamDistanceScale(2)
-	if not self.galaxyVerified then
-		ns.StartTimer("galaxyCheck", 3, function()
-			Screen:VerifyGalaxy(1)
-		end)
-	end
-end
-
--- The galaxy is a Legion-era model; if this client doesn't have it, show Azeroth instead.
-function Screen:VerifyGalaxy(attempt)
-	if not self.active or self.mode ~= "GALAXY" or self.galaxyVerified then
-		return
-	end
-	if ModelIsLoaded(self.galaxy) then
-		self.galaxyVerified = true
-		return
-	end
-	if attempt == 1 then
-		pcall(self.galaxy.SetModel, self.galaxy, GALAXY_MODEL_FILE)
-		self.galaxy:SetCamDistanceScale(2)
-		ns.StartTimer("galaxyCheck", 3, function()
-			Screen:VerifyGalaxy(2)
-		end)
-	else
-		self.galaxyUnavailable = true
-		self.galaxy:Hide()
-		self:SetSkyShown(true)
-		ns:Print(L.MSG_GALAXY_FALLBACK)
 	end
 end
 
@@ -1299,11 +1263,8 @@ function Screen:Finish()
 	self:SetStarsAnimating(false)
 	self:SetSkyShown(false)
 	self.hint.pulse:Stop()
-	ns.CancelTimer("galaxyCheck")
 	self.animTimer, self.animPhase, self.currentAnimation = nil, nil, nil
 	self.model:ClearModel()
-	self.galaxy:ClearModel()
-	self.galaxy:Hide()
 end
 
 function Screen:OnUpdate(elapsed)

@@ -124,7 +124,6 @@ function Options:Init()
 
 	Header(layout, L.OPT_APPEARANCE)
 	local background = Dropdown(category, "background", L.OPT_BACKGROUND, L.OPT_BACKGROUND_TT, {
-		{ "GALAXY", L.BG_GALAXY, L.BG_GALAXY_TT },
 		{ "AZEROTH", L.BG_AZEROTH, L.BG_AZEROTH_TT },
 		{ "STARFIELD", L.BG_STARFIELD, L.BG_STARFIELD_TT },
 		{ "WORLD", L.BG_WORLD, L.BG_WORLD_TT },

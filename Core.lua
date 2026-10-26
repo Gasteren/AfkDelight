@@ -40,10 +40,10 @@ ns.isForever = (_G.WOW_PROJECT_CAMELOT ~= nil and _G.WOW_PROJECT_ID == _G.WOW_PR
 -- Settings
 ------------------------------------------------------------------------
 
-ns.BACKGROUNDS = { "GALAXY", "AZEROTH", "STARFIELD", "WORLD", "SOLID" }
+ns.BACKGROUNDS = { "AZEROTH", "STARFIELD", "WORLD", "SOLID" }
 ns.ANIMATIONS = { "RANDOM", "STAND", "DANCE", "TALK" }
 
-local DB_VERSION = 3
+local DB_VERSION = 4
 
 ns.defaults = {
 	enabled = true,
@@ -52,8 +52,8 @@ ns.defaults = {
 	dismissOnPopups = true,
 	showSummary = true,
 
-	-- WoW Forever has no galaxy model, so it starts with Azeroth.
-	background = ns.isForever and "AZEROTH" or "GALAXY",
+	-- Azeroth, spinning over the stars, looks the same on Retail and WoW Forever.
+	background = "AZEROTH",
 	worldDim = 40,
 	cameraSpin = true,
 	showModel = true,
@@ -92,18 +92,19 @@ function ns:InitDB()
 		_G.AfkDelightDB = {}
 	end
 	local db = _G.AfkDelightDB
+	local version = tonumber(db.dbVersion) or 0
 
-	-- Settings version 2 (from the WoW Forever beta builds): the screen only closes with Escape or the Close
-	-- button, and WoW Forever (which has no galaxy model) switches to Azeroth.
-	if (tonumber(db.dbVersion) or 0) < 2 then
+	-- Settings version 2 (from the WoW Forever beta builds): the screen only closes with Escape or the Close button.
+	if version < 2 then
 		db.dismissOnInput = nil
-		if self.isForever and db.background == "GALAXY" then
-			db.background = "AZEROTH"
-		end
 	end
 	-- Settings version 3: creature flybys were removed, and their setting with them.
-	if (tonumber(db.dbVersion) or 0) < 3 then
+	if version < 3 then
 		db.dragonFlyby = nil
+	end
+	-- Settings version 4: the galaxy background was removed, and spinning Azeroth takes its place.
+	if version < 4 and db.background == "GALAXY" then
+		db.background = "AZEROTH"
 	end
 
 	for key, default in pairs(self.defaults) do
