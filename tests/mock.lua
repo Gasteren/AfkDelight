@@ -45,7 +45,7 @@ local S = {
 	afk = false, afkValue = nil, lockdown = false, combat = false, casting = nil, channeling = nil,
 	instance = false, petBattle = false, level = 80, maxLevel = 80, xp = 0, xpMax = 0, rested = nil,
 	resting = true, money = 1234567, titleID = 0, titleName = " the Insane", bgStatus = "none",
-	showSurname = false, name = "Frostanon", surname = nil, galaxyLoads = true, hasAnimation = true,
+	showSurname = false, name = "Frostanon", surname = nil, hasAnimation = true,
 	guild = true, onModelLoaded = true, shift = false,
 }
 H.S = S
@@ -90,6 +90,7 @@ local METHODS = {
 	FontString = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleRegionAPI, W.SimpleFontStringAPI),
 	AnimationGroup = ToSet(FSO, OBJ, W.SimpleAnimGroupAPI),
 	Alpha = ToSet(FSO, OBJ, W.SimpleAnimAPI, W.SimpleAnimAlphaAPI),
+	Rotation = ToSet(FSO, OBJ, W.SimpleAnimAPI, W.SimpleAnimRotationAPI),
 	Font = ToSet(FSO, W.SimpleFontAPI),
 	GameTooltip = ToSet({ "SetOwner", "SetText", "AddLine", "Show", "Hide", "IsShown" }),
 }
@@ -301,22 +302,25 @@ function Impl.CreateFontString(self, name, layer, template) CheckLayer(layer); r
 function Impl.CreateLine(self, name, layer, template, subLevel) CheckLayer(layer, subLevel); return New("Line", name, self) end
 function Impl.CreateAnimationGroup(self)
 	local group = New("AnimationGroup")
-	group.__animations = {}
+	group.__animations, group.__owner = {}, self
 	return group
 end
+local ANIMATION_TYPES = ToSet({ "Alpha", "Rotation" })
 function Impl.CreateAnimation(self, animationType)
-	assert(animationType == "Alpha", "mock only knows Alpha animations, got " .. tostring(animationType))
-	local animation = New("Alpha")
+	assert(ANIMATION_TYPES[animationType], "mock only knows Alpha and Rotation animations, got " .. tostring(animationType))
+	local animation = New(animationType)
 	table.insert(self.__animations, animation)
 	return animation
 end
-function Impl.SetLooping(self, mode) assert(mode == "NONE" or mode == "REPEAT" or mode == "BOUNCE", "bad looping") end
+function Impl.SetLooping(self, mode) assert(mode == "NONE" or mode == "REPEAT" or mode == "BOUNCE", "bad looping"); self.__looping = mode end
 function Impl.Play(self) self.__playing = true end
 function Impl.Stop(self) self.__playing = false end
 function Impl.IsPlaying(self) return self.__playing == true end
 function Impl.SetFromAlpha(self, alpha) assert(IsNumber(alpha) and alpha >= 0 and alpha <= 1, "bad from alpha") end
 function Impl.SetToAlpha(self, alpha) assert(IsNumber(alpha) and alpha >= 0 and alpha <= 1, "bad to alpha") end
-function Impl.SetDuration(self, duration) assert(IsNumber(duration) and duration >= 0, "bad duration") end
+function Impl.SetDegrees(self, degrees) assert(IsNumber(degrees), "bad degrees"); self.__degrees = degrees end
+function Impl.SetOrigin(self, point, x, y) assert(POINTS[point] and IsNumber(x) and IsNumber(y), "bad origin"); self.__origin = { point, x, y } end
+function Impl.SetDuration(self, duration) assert(IsNumber(duration) and duration >= 0, "bad duration"); self.__duration = duration end
 function Impl.SetStartDelay(self, delay) assert(IsNumber(delay) and delay >= 0, "bad delay") end
 function Impl.SetSmoothing(self, smoothing) assert(smoothing == "NONE" or smoothing == "IN" or smoothing == "OUT" or smoothing == "IN_OUT", "bad smoothing") end
 
@@ -425,8 +429,6 @@ local function ScheduleModelLoad(model)
 		local fileID
 		if source.unit then
 			fileID = 4207724
-		elseif (source.display == 67918 or source.file == 1305790) and S.galaxyLoads then
-			fileID = 1305790
 		end
 		if fileID then
 			model.__loaded = fileID

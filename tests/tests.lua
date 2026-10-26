@@ -85,8 +85,8 @@ if scenario == "retail" then
 step("load, saved variables, options panel", function()
 	Load()
 	check(ns.isForever == false, "detected retail")
-	check(ns.db.background == "GALAXY", "retail starts with the galaxy")
-	check(ns.db.dbVersion == 3 and ns.db.dismissOnInput == nil, "current settings version")
+	check(ns.db.background == "AZEROTH", "retail starts with spinning Azeroth")
+	check(ns.db.dbVersion == 4 and ns.db.dismissOnInput == nil, "current settings version")
 	local count = 0
 	for key, default in pairs(ns.defaults) do
 		count = count + 1
@@ -130,7 +130,8 @@ step("options panel controls are valid", function()
 			for _, option in ipairs(init.options()) do backgrounds[option.value] = true end
 		end
 	end
-	check(backgrounds.AZEROTH and backgrounds.GALAXY and backgrounds.STARFIELD and backgrounds.WORLD and backgrounds.SOLID, "all backgrounds offered")
+	check(backgrounds.AZEROTH and backgrounds.STARFIELD and backgrounds.WORLD and backgrounds.SOLID, "all backgrounds offered")
+	check(not backgrounds.GALAXY, "galaxy background removed")
 	check(H.settings.byVariable.AfkDelight_dismissOnInput == nil, "close-on-any-key option removed")
 	check(H.settings.byVariable.AfkDelight_dragonFlyby == nil, "creature flyby option removed")
 	check(L.Formatters == "Formatters", "missing locale keys fall back to the key")
@@ -160,10 +161,8 @@ step("going AFK shows the screen with character info", function()
 	check(Screen.timer:GetText() == "Away for 00:01", "timer " .. tostring(Screen.timer:GetText()))
 	check(Screen.clock:GetText() == "17:05", "clock")
 	check(Screen.date:GetText():match("^%a+, %a+ %d+$"), "date " .. tostring(Screen.date:GetText()))
-	check(Screen.galaxy:IsShown() and Screen.galaxy.__display == 67918, "galaxy model")
-	check(Screen.galaxyVerified, "galaxy model loaded")
-	check(not Screen.sky:IsShown(), "no Azeroth over the galaxy")
-	check(Screen.starfield:IsShown() and Screen.starsAnimating, "starfield behind the galaxy")
+	check(Screen.sky:IsShown() and Screen.bodies[1].spin:IsPlaying(), "spinning Azeroth")
+	check(Screen.starfield:IsShown() and Screen.starsAnimating, "starfield behind Azeroth")
 	check(Screen.model:IsShown() and Screen.model.__unit == "player", "character model")
 	check(H.animations[1] == 67, "waves first")
 	check(Screen.hint:GetText() == L.HINT_CLOSE, "hint")
@@ -437,14 +436,18 @@ step("moving, zoning and logging out", function()
 	Return()
 end)
 
-step("Azeroth alone in the night sky, and nothing flies by", function()
-	ns:SetOption("background", "AZEROTH")
+step("only Azeroth, spinning, and nothing flies by", function()
 	GoAFK()
-	check(Screen.sky:IsShown() and Screen.starfield:IsShown() and not Screen.galaxy:IsShown(), "sky over stars, no galaxy")
+	check(Screen.sky:IsShown() and Screen.starfield:IsShown(), "Azeroth over the stars")
 	check(#Screen.bodies == 1 and #Screen.sky.__children == 1, "only Azeroth, no moons")
 	local azeroth = Screen.bodies[1]
-	check(azeroth.surface.__file == 130561, "the game's own sky texture")
+	check(azeroth.surface.__file == 130561, "environments/stars/moon.blp, in Retail and WoW Forever")
 	check(not azeroth.surface.__desaturated and not azeroth.surface.__masks, "Azeroth keeps her colours, no masks needed")
+	local spin = azeroth.spin
+	local turn = spin.__animations[1]
+	check(spin.__owner == azeroth.surface and spin.__looping == "REPEAT" and spin:IsPlaying(), "Azeroth keeps spinning")
+	check(#spin.__animations == 1 and turn.__type == "Rotation" and turn.__degrees == 360 and turn.__duration == 120, "one counter-clockwise turn every two minutes")
+	check(turn.__origin[1] == "CENTER" and turn.__origin[2] == 0 and turn.__origin[3] == 0, "around her own centre")
 	local dust = Screen.starDust
 	check(dust.__file == 130627 and dust.__blend == "ADD" and dust.__wrap[1] == "REPEAT" and dust.__wrap[2] == "REPEAT", "star dust")
 	check(math.abs(dust.__texCoord[2] - 1600 / 512) < 1e-6 and math.abs(dust.__texCoord[4] - 900 / 512) < 1e-6, "star dust tiled at its own size")
@@ -454,7 +457,7 @@ step("Azeroth alone in the night sky, and nothing flies by", function()
 	local drift = math.abs(X(azeroth) - azerothX)
 	check(drift > 0 and drift < 8, "Azeroth drifts slowly (" .. drift .. ")")
 
-	-- Nothing crosses the sky, over Azeroth or the galaxy: the galaxy and your character are the only models.
+	-- Nothing crosses the sky: your character is the only model on the screen.
 	local function CountModels(region)
 		local count = region.__type == "PlayerModel" and 1 or 0
 		for _, child in ipairs(region.__children) do
@@ -463,14 +466,10 @@ step("Azeroth alone in the night sky, and nothing flies by", function()
 		return count
 	end
 	H.Advance(300, 0.25)
-	check(CountModels(Screen.frame) == 2, "no models besides the galaxy and your character")
+	check(CountModels(Screen.frame) == 1, "no models besides your character")
 	CloseFully()
+	check(not spin:IsPlaying(), "the spin stops with the screen")
 	Return()
-	ns:SetOption("background", "GALAXY")
-	SlashCmdList.AFKDELIGHT("test")
-	H.Advance(300, 0.25)
-	check(Screen.galaxy:IsShown() and CountModels(Screen.frame) == 2, "nothing flies over the galaxy either")
-	CloseFully()
 end)
 
 step("game world background fades the UI and spins the camera", function()
@@ -479,7 +478,7 @@ step("game world background fades the UI and spins the camera", function()
 	H.Advance(1.25)
 	check(UIParent:GetAlpha() < 0.001, "interface faded out")
 	check(math.abs(Screen.frame:GetAlpha() - 1) < 1e-6 and Screen.frame.__ignoreParentAlpha, "AFK screen stays visible")
-	check(not Screen.starfield:IsShown() and not Screen.galaxy:IsShown() and not Screen.sky:IsShown(), "no space background")
+	check(not Screen.starfield:IsShown() and not Screen.sky:IsShown(), "no space background")
 	check(math.abs(Screen.backdrop.__color[4] - 0.4) < 1e-6, "world dimmed by 40%")
 	check(H.moveViewStart == 1 and ns.db.cameraSpinActive, "camera spinning")
 	Close()
@@ -526,7 +525,7 @@ end)
 step("starfield and solid backgrounds", function()
 	SlashCmdList.AFKDELIGHT("test")
 	check(Screen:IsActive() and Screen.preview, "preview open")
-	check(Screen.starfield:IsShown() and not Screen.galaxy:IsShown() and not Screen.sky:IsShown(), "starfield only")
+	check(Screen.starfield:IsShown() and not Screen.sky:IsShown() and not Screen.bodies[1].spin:IsPlaying(), "starfield only")
 	local before = H.lineUpdates
 	H.Advance(30, 0.05)
 	check(H.lineUpdates > before, "shooting stars drawn")
@@ -534,9 +533,9 @@ step("starfield and solid backgrounds", function()
 	check(not Screen:IsActive(), "preview toggled off")
 	ns:SetOption("background", "SOLID")
 	SlashCmdList.AFKDELIGHT("preview")
-	check(not Screen.starfield:IsShown() and not Screen.galaxy:IsShown() and not Screen.starsAnimating and not Screen.sky:IsShown(), "solid background")
+	check(not Screen.starfield:IsShown() and not Screen.starsAnimating and not Screen.sky:IsShown(), "solid background")
 	Close()
-	ns:SetOption("background", "GALAXY")
+	ns:SetOption("background", "AZEROTH")
 end)
 
 step("preview shows sample messages and doesn't create a session", function()
@@ -674,7 +673,6 @@ step("layout survives resolution and scale changes", function()
 	Close()
 	UIParent:SetSize(1600, 900)
 	H.Fire("DISPLAY_SIZE_CHANGED")
-	ns:SetOption("background", "GALAXY")
 end)
 
 step("player title is shown", function()
@@ -695,20 +693,19 @@ elseif scenario == "forever" then
 
 S.level, S.maxLevel, S.xp, S.xpMax, S.rested, S.resting = 34, 60, 45000, 100000, 120000, false
 S.name, S.surname, S.showSurname = "Aldric", "Stormwind", true
-S.galaxyLoads = false
 S.guild = false
 
 step("load on WoW Forever", function()
 	Load()
 	check(ns.isForever == true, "detected Forever")
-	check(ns.db.background == "AZEROTH", "Forever starts with the night sky of Azeroth")
+	check(ns.db.background == "AZEROTH", "Forever starts with spinning Azeroth too")
 	check(#H.settings.list > 0, "options registered")
 end)
 
 step("Forever character info: surname and leveling", function()
 	GoAFK()
 	H.Advance(1.25)
-	check(Screen.sky:IsShown() and not Screen.galaxy:IsShown(), "Azeroth, no galaxy attempt")
+	check(Screen.sky:IsShown() and Screen.bodies[1].surface.__file == 130561 and Screen.bodies[1].spin:IsPlaying(), "the same spinning Azeroth on WoW Forever")
 	check(Screen.name:GetText() == "Aldric-Stormwind", "surname shown " .. tostring(Screen.name:GetText()))
 	check(not Screen.guild:IsShown(), "no guild line without a guild")
 	check(Screen.details:GetText() == "Level 34 Void Elf Frost Mage", "details")
@@ -723,42 +720,21 @@ step("Forever character info: surname and leveling", function()
 	Return()
 end)
 
-step("choosing the galaxy on Forever falls back to the night sky", function()
-	ns:SetOption("background", "GALAXY")
-	GoAFK()
-	check(Screen.galaxy:IsShown() and not Screen.sky:IsShown(), "galaxy attempted")
-	H.Advance(3.25)
-	check(Screen.galaxy.__file == 1305790, "second attempt by file ID")
-	local before = #H.printed
-	H.Advance(3.25)
-	check(Screen.galaxyUnavailable and not Screen.galaxy:IsShown(), "galaxy given up")
-	check(Screen.sky:IsShown() and Screen.starfield:IsShown(), "night sky shown instead")
-	check(printedSince(before, L.MSG_GALAXY_FALLBACK), "user told once")
-	Close()
-	Return()
-	before = #H.printed
-	GoAFK()
-	H.Advance(7)
-	check(Screen.sky:IsShown() and not Screen.galaxy:IsShown() and not printedSince(before, L.MSG_GALAXY_FALLBACK), "no retries or repeated messages")
-	Close()
-	Return()
-end)
-
 step("status reports Forever", function()
 	local before = #H.printed
 	SlashCmdList.AFKDELIGHT("status")
 	check(printedSince(before, "World of Warcraft: Forever (interface 16001)"), "status " .. tostring(H.printed[#H.printed]))
 end)
 
-step("model without OnModelLoaded support still verifies by file ID", function()
+step("a character model without OnModelLoaded support is still noticed by file ID", function()
 	S.onModelLoaded = false
-	S.galaxyLoads = true
-	Screen.galaxyUnavailable, Screen.galaxyVerified = nil, nil
 	GoAFK()
-	H.Advance(3.25)
-	check(Screen.galaxyVerified and Screen.galaxy:IsShown() and not Screen.sky:IsShown(), "verified through GetModelFileID")
+	check(not Screen.characterLoaded, "model still loading")
+	H.Advance(0.5)
+	check(Screen.characterLoaded, "noticed through GetModelFileID")
 	Close()
 	Return()
+	S.onModelLoaded = true
 end)
 
 ------------------------------------------------------------------------
@@ -770,10 +746,10 @@ AfkDelightDB = { dbVersion = 1, enabled = true, background = "GALAXY", dismissOn
 
 step("early beta settings are upgraded on WoW Forever", function()
 	Load()
-	check(ns.db.dbVersion == 3, "settings version bumped")
+	check(ns.db.dbVersion == 4, "settings version bumped")
 	check(ns.db.dismissOnInput == nil, "close-on-any-key setting removed")
 	check(ns.db.dragonFlyby == nil, "creature flyby setting removed")
-	check(ns.db.background == "AZEROTH", "galaxy switched to the night sky on Forever")
+	check(ns.db.background == "AZEROTH", "galaxy replaced by Azeroth")
 	check(ns.db.delay == 5 and ns.db.showChat == true, "other settings kept, new ones added")
 end)
 
@@ -787,9 +763,9 @@ step("bad saved variables are repaired", function()
 	Load()
 	check(ns.db.enabled == true, "wrong type replaced")
 	check(ns.db.delay == 300 and ns.db.worldDim == 0 and ns.db.modelFacing == 180, "numbers clamped")
-	check(ns.db.background == "GALAXY" and ns.db.animation == "RANDOM", "unknown choices replaced")
+	check(ns.db.background == "AZEROTH" and ns.db.animation == "RANDOM", "unknown choices replaced")
 	check(ns.db.extra == "kept", "unknown keys left alone")
-	check(ns.db.dbVersion == 3, "settings version set")
+	check(ns.db.dbVersion == 4, "settings version set")
 end)
 
 step("a camera spin left running by a reload is stopped", function()
