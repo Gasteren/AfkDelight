@@ -46,28 +46,9 @@ local S = {
 	instance = false, petBattle = false, level = 80, maxLevel = 80, xp = 0, xpMax = 0, rested = nil,
 	resting = true, money = 1234567, titleID = 0, titleName = " the Insane", bgStatus = "none",
 	showSurname = false, name = "Frostanon", surname = nil, galaxyLoads = true, hasAnimation = true,
-	guild = true, onModelLoaded = true, shift = false, faction = "Alliance", flyerLoads = true,
+	guild = true, onModelLoaded = true, shift = false,
 }
 H.S = S
-
--- Flying animations per creature display, as found in WoW Forever's model files:
--- Onyxia's high-detail model only has FlyRun/FlyWalk/FlyStand, the classic models have Fly.
-function H.DefaultFlyers()
-	local function Set(...)
-		local set = {}
-		for i = 1, select("#", ...) do set[select(i, ...)] = true end
-		return set
-	end
-	return {
-		[8570] = Set(229, 233, 234), -- Onyxia
-		[1149] = Set(135), -- gryphon
-		[295] = Set(135), -- wind rider
-		[3212] = Set(135, 193, 229, 234), -- white hippogryph
-		[2717] = Set(135, 193), -- green dragon
-		[1267] = Set(135, 193), -- faerie dragon
-	}
-end
-S.flyers = H.DefaultFlyers()
 
 -- Secret value sentinel: any arithmetic, concatenation, comparison or indexing raises an error.
 local SECRET = newproxy(true)
@@ -446,8 +427,6 @@ local function ScheduleModelLoad(model)
 			fileID = 4207724
 		elseif (source.display == 67918 or source.file == 1305790) and S.galaxyLoads then
 			fileID = 1305790
-		elseif source.display and S.flyers[source.display] and S.flyerLoads then
-			fileID = 100000 + source.display
 		end
 		if fileID then
 			model.__loaded = fileID
@@ -488,29 +467,11 @@ end
 function Impl.SetAnimation(self, animation)
 	assert(IsNumber(animation), "bad animation")
 	self.__animation = animation
-	-- H.animations follows the character; creature models keep their own list.
-	if self.__unit then
-		H.animations[#H.animations + 1] = animation
-	else
-		H.flyerAnimations = H.flyerAnimations or {}
-		H.flyerAnimations[#H.flyerAnimations + 1] = animation
-	end
+	H.animations[#H.animations + 1] = animation
 end
 function Impl.HasAnimation(self, animation)
 	assert(IsNumber(animation))
-	local flyer = self.__display and S.flyers[self.__display]
-	if flyer then
-		return flyer[animation] == true
-	end
 	return S.hasAnimation
-end
-function Impl.SetLight(self, enabled, light)
-	assert(type(enabled) == "boolean" and type(light) == "table", "bad SetLight arguments")
-	assert(type(light.point) == "table" and light.point.GetXYZ, "ModelLight.point needs a Vector3D")
-	assert(IsNumber(light.ambientIntensity) and IsNumber(light.diffuseIntensity), "ModelLight intensities")
-	assert(light.ambientColor == nil or light.ambientColor.GetRGB, "ModelLight.ambientColor needs a color")
-	self.__light = light
-	H.lights = (H.lights or 0) + 1
 end
 local function RecordScroll(method)
 	return function(self) self.__scrolls = self.__scrolls or {}; table.insert(self.__scrolls, method) end
@@ -699,12 +660,6 @@ function CreateColor(r, g, b, a)
 	function color:WrapTextInColorCode(text) return string.format("|cff%02x%02x%02x%s|r", self.r * 255, self.g * 255, self.b * 255, text) end
 	return color
 end
-function CreateVector3D(x, y, z)
-	assert(IsNumber(x) and IsNumber(y) and IsNumber(z), "bad vector")
-	local vector = { x = x, y = y, z = z }
-	function vector:GetXYZ() return self.x, self.y, self.z end
-	return vector
-end
 function IsShiftKeyDown() return S.shift end
 C_ClassColor = { GetClassColor = function(classFile) assert(type(classFile) == "string"); return CreateColor(0.25, 0.78, 0.92, 1) end }
 RAID_CLASS_COLORS = setmetatable({}, { __index = function(_, classFile) return C_ClassColor.GetClassColor(classFile) end })
@@ -719,7 +674,6 @@ function UnitIsAFK(unit) assert(unit == "player"); if S.afkValue ~= nil then ret
 function UnitName(unit) assert(unit == "player"); return S.name, S.surname end
 function UnitClass(unit) return "Mage", "MAGE", 8 end
 function UnitRace(unit) return "Void Elf", "VoidElf", 29 end
-function UnitFactionGroup(unit) assert(unit == "player", "faction of " .. tostring(unit)); return S.faction, S.faction end
 function UnitLevel(unit) return S.level end
 function UnitXP(unit) return S.xp end
 function UnitXPMax(unit) return S.xpMax end

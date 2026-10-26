@@ -86,7 +86,7 @@ step("load, saved variables, options panel", function()
 	Load()
 	check(ns.isForever == false, "detected retail")
 	check(ns.db.background == "GALAXY", "retail starts with the galaxy")
-	check(ns.db.dbVersion == 2 and ns.db.dismissOnInput == nil, "current settings version")
+	check(ns.db.dbVersion == 3 and ns.db.dismissOnInput == nil, "current settings version")
 	local count = 0
 	for key, default in pairs(ns.defaults) do
 		count = count + 1
@@ -132,6 +132,7 @@ step("options panel controls are valid", function()
 	end
 	check(backgrounds.AZEROTH and backgrounds.GALAXY and backgrounds.STARFIELD and backgrounds.WORLD and backgrounds.SOLID, "all backgrounds offered")
 	check(H.settings.byVariable.AfkDelight_dismissOnInput == nil, "close-on-any-key option removed")
+	check(H.settings.byVariable.AfkDelight_dragonFlyby == nil, "creature flyby option removed")
 	check(L.Formatters == "Formatters", "missing locale keys fall back to the key")
 end)
 
@@ -161,7 +162,7 @@ step("going AFK shows the screen with character info", function()
 	check(Screen.date:GetText():match("^%a+, %a+ %d+$"), "date " .. tostring(Screen.date:GetText()))
 	check(Screen.galaxy:IsShown() and Screen.galaxy.__display == 67918, "galaxy model")
 	check(Screen.galaxyVerified, "galaxy model loaded")
-	check(not Screen.sky:IsShown(), "no moons over the galaxy")
+	check(not Screen.sky:IsShown(), "no Azeroth over the galaxy")
 	check(Screen.starfield:IsShown() and Screen.starsAnimating, "starfield behind the galaxy")
 	check(Screen.model:IsShown() and Screen.model.__unit == "player", "character model")
 	check(H.animations[1] == 67, "waves first")
@@ -436,160 +437,40 @@ step("moving, zoning and logging out", function()
 	Return()
 end)
 
-step("Azeroth and her moons, with creature flybys", function()
+step("Azeroth alone in the night sky, and nothing flies by", function()
 	ns:SetOption("background", "AZEROTH")
 	GoAFK()
 	check(Screen.sky:IsShown() and Screen.starfield:IsShown() and not Screen.galaxy:IsShown(), "sky over stars, no galaxy")
-	check(#Screen.bodies == 3, "Azeroth, the White Lady and the Blue Child")
-	local azeroth, whiteLady, blueChild = Screen.bodies[1], Screen.bodies[2], Screen.bodies[3]
-	check(azeroth.surface.__file == 130561 and whiteLady.surface.__file == 130521 and blueChild.surface.__file == 130449, "the game's own sky textures")
-	check(azeroth.__width > whiteLady.__width * 2 and whiteLady.__width > blueChild.__width, "Azeroth first, then the White Lady, then the Blue Child")
-	check(not azeroth.glow and not azeroth.surface.__desaturated and not azeroth.surface.__masks, "Azeroth keeps her colours, no masks needed")
-	check(whiteLady.surface.__desaturated and whiteLady.glow.__desaturated and whiteLady.glow.__blend == "ADD", "the White Lady is pale and glows")
-	local tint = blueChild.surface.__vertexColor
-	check(tint and tint[1] < 0.6 and tint[3] == 1 and blueChild.glow.__vertexColor[1] == tint[1], "the Blue Child is blue")
-	check(whiteLady.pulse:IsPlaying() and blueChild.pulse:IsPlaying(), "moons glow")
+	check(#Screen.bodies == 1 and #Screen.sky.__children == 1, "only Azeroth, no moons")
+	local azeroth = Screen.bodies[1]
+	check(azeroth.surface.__file == 130561, "the game's own sky texture")
+	check(not azeroth.surface.__desaturated and not azeroth.surface.__masks, "Azeroth keeps her colours, no masks needed")
 	local dust = Screen.starDust
 	check(dust.__file == 130627 and dust.__blend == "ADD" and dust.__wrap[1] == "REPEAT" and dust.__wrap[2] == "REPEAT", "star dust")
 	check(math.abs(dust.__texCoord[2] - 1600 / 512) < 1e-6 and math.abs(dust.__texCoord[4] - 900 / 512) < 1e-6, "star dust tiled at its own size")
 	local function X(region) return region.__points[#region.__points][4] end
-	local ladyX, azerothX = X(whiteLady), X(azeroth)
+	local azerothX = X(azeroth)
 	H.Advance(60)
-	local ladyDrift, azerothDrift = math.abs(X(whiteLady) - ladyX), math.abs(X(azeroth) - azerothX)
-	check(azerothDrift > 0 and ladyDrift > azerothDrift, "the moons drift further than Azeroth")
-	check(H.lights and H.lights >= 1, "something flew by within the first minute")
+	local drift = math.abs(X(azeroth) - azerothX)
+	check(drift > 0 and drift < 8, "Azeroth drifts slowly (" .. drift .. ")")
 
-	-- Watch the sky (for up to 40 minutes) until every flyer of an Alliance player has come by in both directions,
-	-- each one flapping and facing its way, with a quiet minute or two between flights.
-	local flyer = Screen.flyer
-	local seen, animations, directions, starts = {}, {}, {}, {}
-	local flying, lastX = false, nil
-	local function AllSeen()
-		return seen[8570] and seen[1149] and seen[3212] and seen[2717] and seen[1267]
-	end
-	for _ = 1, 9600 do
-		H.Advance(0.25, 0.25)
-		local flight = Screen.flight
-		if flight.active and flight.loaded then
-			if not flying then
-				flying, lastX = true, nil
-				starts[#starts + 1] = H.time
-				local display = flyer.__display
-				seen[display] = (seen[display] or 0) + 1
-				animations[display] = flyer.__animation
-				directions[flight.toX > flight.fromX and "right" or "left"] = true
-				check(flyer:IsShown() and S.flyers[display][flyer.__animation], "flies with an animation its model has")
-				check(math.abs(flyer.__rotation - flight.facing) < 1e-6 and math.abs(math.abs(flight.facing) - math.pi / 2) < 1e-6, "side-on, facing its way")
-				check((flight.facing > 0) == (flight.toX > flight.fromX), "faces the way it flies")
-				check(flyer.__light and flyer.__light.ambientIntensity >= 0.5 and flyer.__light.diffuseIntensity > 0, "moonlit, not a black shape on a black sky")
-			end
-			local x = X(flyer)
-			if lastX then
-				check((x - lastX) * (flight.toX - flight.fromX) >= 0, "keeps flying the same way")
-			end
-			lastX = x
-		elseif flying then
-			flying = false
-			check(not flyer:IsShown(), "gone after its flight")
-			check(Screen.nextFlight >= 40, "the next flyby is a while away")
-			if #starts >= 6 and AllSeen() and directions.left and directions.right then
-				break
-			end
+	-- Nothing crosses the sky, over Azeroth or the galaxy: the galaxy and your character are the only models.
+	local function CountModels(region)
+		local count = region.__type == "PlayerModel" and 1 or 0
+		for _, child in ipairs(region.__children) do
+			count = count + CountModels(child)
 		end
+		return count
 	end
-	check(AllSeen(), "Onyxia, gryphon, hippogryph, green dragon and faerie dragon all came by")
-	check(#starts >= 6, "watched several flights (" .. #starts .. ")")
-	for i = 2, #starts do
-		local gap = starts[i] - starts[i - 1]
-		check(gap >= 70 and gap <= 150, "a flyby every minute or two (" .. gap .. " s apart)")
-	end
-	check(not seen[295], "no wind rider for an Alliance character")
-	check(animations[8570] == 234 and animations[1149] == 135, "Onyxia flies with FlyRun, classic models with Fly")
-	check(directions.left and directions.right, "flights both ways")
+	H.Advance(300, 0.25)
+	check(CountModels(Screen.frame) == 2, "no models besides the galaxy and your character")
 	CloseFully()
 	Return()
-end)
-
-step("flybys can be turned off and never misbehave", function()
-	ns:SetOption("dragonFlyby", false)
-	SlashCmdList.AFKDELIGHT("test")
-	local lightsBefore = H.lights or 0
-	H.Advance(200, 0.25)
-	check(not Screen.flyer:IsShown() and (H.lights or 0) == lightsBefore, "no flybys when turned off")
-	CloseFully()
-	ns:SetOption("dragonFlyby", true)
-
-	-- A preview brings the first flyer almost at once; turning flybys off sends it away.
-	SlashCmdList.AFKDELIGHT("test")
-	H.Advance(3.5)
-	check(Screen.flight.active and Screen.flight.loaded and Screen.flyer:IsShown(), "first flyer right away in a preview")
-	ns:SetOption("dragonFlyby", false)
-	H.Advance(0.25)
-	check(not Screen.flight.active and not Screen.flyer:IsShown(), "turning flybys off ends the flight")
-	ns:SetOption("dragonFlyby", true)
-	CloseFully()
-
-	-- A creature whose model can't fly in this client is left out for good; the others still come.
-	S.flyers[8570] = {}
-	Screen.flyerFailures, Screen.flyerDeck = {}, nil
-	SlashCmdList.AFKDELIGHT("test")
-	local seen = {}
-	for _ = 1, 4000 do
-		H.Advance(0.25, 0.25)
-		if Screen.flight.active and Screen.flight.loaded then
-			seen[Screen.flyer.__display] = true
-		end
-	end
-	check(not seen[8570] and Screen.flyerFailures[8570] == 2, "no flying animation: never shown sliding across the sky")
-	check(seen[1149] and seen[3212] and seen[2717] and seen[1267], "the others still fly")
-	CloseFully()
-
-	-- Only a hover animation: it hovers across.
-	for display in pairs(S.flyers) do S.flyers[display] = { [193] = true } end
-	Screen.flyerFailures, Screen.flyerDeck = {}, nil
-	SlashCmdList.AFKDELIGHT("test")
-	H.Advance(3.5)
-	check(Screen.flight.loaded and Screen.flyer.__animation == 193, "falls back to the hover animation")
-	CloseFully()
-
-	-- Nothing can fly at all: flybys stop for good, quietly.
-	for display in pairs(S.flyers) do S.flyers[display] = {} end
-	Screen.flyerFailures, Screen.flyerDeck = {}, nil
-	SlashCmdList.AFKDELIGHT("test")
-	H.Advance(60, 0.25)
-	check(Screen.flybysUnavailable and not Screen.flyer:IsShown(), "no flying animations anywhere: no flybys")
-	CloseFully()
-
-	-- Models that never load get two tries each, then flybys stop.
-	S.flyers = H.DefaultFlyers()
-	S.flyerLoads = false
-	Screen.flyerFailures, Screen.flyerDeck, Screen.flybysUnavailable = {}, nil, nil
-	SlashCmdList.AFKDELIGHT("test")
-	H.Advance(400, 0.25)
-	check(Screen.flybysUnavailable and not Screen.flyer:IsShown(), "missing models given up")
-	for _, display in ipairs({ 8570, 1149, 3212, 2717, 1267 }) do
-		check(Screen.flyerFailures[display] == 2, "two tries for display " .. display)
-	end
-	check(Screen.flyerFailures[295] == nil, "the other faction's mount is never tried")
-	CloseFully()
-	S.flyerLoads = true
-	Screen.flyerFailures, Screen.flyerDeck, Screen.flybysUnavailable = {}, nil, nil
 	ns:SetOption("background", "GALAXY")
-end)
-
-step("flybys cross the galaxy too, but not the plain starfield", function()
 	SlashCmdList.AFKDELIGHT("test")
-	H.Advance(3.5)
-	check(Screen.galaxy:IsShown() and not Screen.sky:IsShown(), "galaxy, no Azeroth")
-	check(Screen.flight.active and Screen.flight.loaded and Screen.flyer:IsShown(), "a flyer over the galaxy")
-	check(Screen.flyer:GetFrameLevel() > Screen.galaxy:GetFrameLevel(), "in front of the galaxy")
-	ns:SetOption("background", "STARFIELD")
-	H.Advance(0.25)
-	check(not Screen.flight.active and not Screen.flyer:IsShown(), "switching to the starfield ends the flight")
-	H.Advance(200, 0.25)
-	check(not Screen.flyer:IsShown() and not Screen.flight.active, "and no flybys there")
+	H.Advance(300, 0.25)
+	check(Screen.galaxy:IsShown() and CountModels(Screen.frame) == 2, "nothing flies over the galaxy either")
 	CloseFully()
-	ns:SetOption("background", "GALAXY")
 end)
 
 step("game world background fades the UI and spins the camera", function()
@@ -787,7 +668,7 @@ step("layout survives resolution and scale changes", function()
 	H.Fire("DISPLAY_SIZE_CHANGED")
 	H.Fire("UI_SCALE_CHANGED")
 	check(Screen.width == 2560 and Screen.height == 1080, "new size used")
-	check(math.abs(Screen.bodies[1].__width - 1080 * 0.42) < 1e-6 and math.abs(Screen.bodies[3].__width - 1080 * 0.07) < 1e-6, "Azeroth and her moons resized")
+	check(math.abs(Screen.bodies[1].__width - 1080 * 0.42) < 1e-6, "Azeroth resized")
 	check(math.abs(Screen.starDust.__texCoord[2] - 2560 / 512) < 1e-6, "star dust re-tiled")
 	H.Advance(30)
 	Close()
@@ -827,7 +708,7 @@ end)
 step("Forever character info: surname and leveling", function()
 	GoAFK()
 	H.Advance(1.25)
-	check(Screen.sky:IsShown() and not Screen.galaxy:IsShown(), "moons, no galaxy attempt")
+	check(Screen.sky:IsShown() and not Screen.galaxy:IsShown(), "Azeroth, no galaxy attempt")
 	check(Screen.name:GetText() == "Aldric-Stormwind", "surname shown " .. tostring(Screen.name:GetText()))
 	check(not Screen.guild:IsShown(), "no guild line without a guild")
 	check(Screen.details:GetText() == "Level 34 Void Elf Frost Mage", "details")
@@ -869,30 +750,6 @@ step("status reports Forever", function()
 	check(printedSince(before, "World of Warcraft: Forever (interface 16001)"), "status " .. tostring(H.printed[#H.printed]))
 end)
 
-step("flyers follow the player's faction", function()
-	local function Deal(count)
-		Screen.flyerDeck, Screen.lastFlyer = nil, nil
-		local dealt = {}
-		for _ = 1, count do
-			local flyer = Screen:NextFlyer()
-			dealt[flyer.display] = (dealt[flyer.display] or 0) + 1
-		end
-		return dealt
-	end
-	S.faction = "Horde"
-	local dealt = Deal(10)
-	check(dealt[295] == 2 and dealt[1149] == nil, "Horde: the wind rider in every round, no gryphon")
-	check(dealt[8570] == 2 and dealt[3212] == 2 and dealt[2717] == 2 and dealt[1267] == 2, "every flyer once per round")
-	S.faction = "Neutral"
-	dealt = Deal(6)
-	check(dealt[295] == 1 and dealt[1149] == 1, "no faction yet: both mounts")
-	S.faction = H.SECRET
-	dealt = Deal(6)
-	check(dealt[295] == 1 and dealt[1149] == 1, "secret faction handled safely")
-	S.faction = "Alliance"
-	Screen.flyerDeck, Screen.lastFlyer = nil, nil
-end)
-
 step("model without OnModelLoaded support still verifies by file ID", function()
 	S.onModelLoaded = false
 	S.galaxyLoads = true
@@ -909,14 +766,15 @@ elseif scenario == "upgrade" then
 ------------------------------------------------------------------------
 
 -- Saved variables written by an early test build on the WoW Forever beta (settings version 1).
-AfkDelightDB = { dbVersion = 1, enabled = true, background = "GALAXY", dismissOnInput = true, delay = 5, cameraSpinActive = false }
+AfkDelightDB = { dbVersion = 1, enabled = true, background = "GALAXY", dismissOnInput = true, dragonFlyby = false, delay = 5, cameraSpinActive = false }
 
 step("early beta settings are upgraded on WoW Forever", function()
 	Load()
-	check(ns.db.dbVersion == 2, "settings version bumped")
+	check(ns.db.dbVersion == 3, "settings version bumped")
 	check(ns.db.dismissOnInput == nil, "close-on-any-key setting removed")
+	check(ns.db.dragonFlyby == nil, "creature flyby setting removed")
 	check(ns.db.background == "AZEROTH", "galaxy switched to the night sky on Forever")
-	check(ns.db.delay == 5 and ns.db.dragonFlyby == true, "other settings kept, new ones added")
+	check(ns.db.delay == 5 and ns.db.showChat == true, "other settings kept, new ones added")
 end)
 
 ------------------------------------------------------------------------
@@ -931,7 +789,7 @@ step("bad saved variables are repaired", function()
 	check(ns.db.delay == 300 and ns.db.worldDim == 0 and ns.db.modelFacing == 180, "numbers clamped")
 	check(ns.db.background == "GALAXY" and ns.db.animation == "RANDOM", "unknown choices replaced")
 	check(ns.db.extra == "kept", "unknown keys left alone")
-	check(ns.db.dbVersion == 2, "settings version set")
+	check(ns.db.dbVersion == 3, "settings version set")
 end)
 
 step("a camera spin left running by a reload is stopped", function()

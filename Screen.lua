@@ -1,11 +1,11 @@
 --[[
 	AfkDelight - Screen.lua
-	By Frost-Xavius (Carlos / Frostanon)
+	By Frost-Lightbringer
 	License: http://creativecommons.org/licenses/by-nc-sa/2.5
 	LegalCode: http://creativecommons.org/licenses/by-nc-sa/2.5/legalcode
 
 	Builds and animates the AFK screen:
-	  backdrop -> stars -> Azeroth and her moons -> galaxy / flyby -> shading -> character -> texts, messages and Close button
+	  backdrop -> stars -> Azeroth -> galaxy -> shading -> character -> texts, messages and Close button
 ]]
 
 local _, ns = ...
@@ -16,8 +16,8 @@ ns.Screen = Screen
 
 local _G = _G
 local issecretvalue = ns.issecretvalue
-local ipairs, pcall, type, unpack = ipairs, pcall, type, unpack
-local tinsert, tremove = table.insert, table.remove
+local ipairs, pcall, type = ipairs, pcall, type
+local tremove = table.remove
 local floor, min, max, abs = math.floor, math.min, math.max, math.abs
 local rad, sin, cos, pi = math.rad, math.sin, math.cos, math.pi
 local random = math.random
@@ -29,38 +29,16 @@ local GetTime = GetTime
 local GALAXY_DISPLAY_ID = 67918
 local GALAXY_MODEL_FILE = 1305790
 
--- Azeroth and her two moons, painted with sky textures that ship with both Retail and WoW Forever
--- (File IDs from environments/stars). Positions are fractions of the screen, sizes of the screen height.
--- The moons get an additive copy of their texture on top, so they glow like moons do.
+-- Azeroth, painted with a sky texture that ships with both Retail and WoW Forever
+-- (File ID from environments/stars). Positions are fractions of the screen, sizes of the screen height.
 local BODIES = {
 	{ -- Azeroth (moon.blp: oceans, continents and the Maelstrom)
 		texture = 130561, x = 0.42, y = 0.5, size = 0.42, drift = 8,
-	},
-	{ -- the White Lady (hellfireplanet_blue01.blp, without its colour)
-		texture = 130521, x = 0.63, y = 0.7, size = 0.14, drift = 25, desaturate = true, glow = true,
-	},
-	{ -- the Blue Child (auchindounplanet_blue02.blp, a thin crescent, tinted blue)
-		texture = 130449, x = 0.575, y = 0.845, size = 0.07, drift = 18, desaturate = true, glow = true,
-		tint = { 0.55, 0.75, 1 },
 	},
 }
 -- Faint coloured stars from the game's own night sky (starrynight.blp), tiled across the screen.
 local STAR_DUST_TEXTURE = 130627
 local STAR_DUST_TILE = 512
-
--- Classic creatures that cross the sky now and then. These display IDs exist in Retail and in WoW Forever;
--- a flyer is only used when the client's model has one of the flying animations below.
-local FLYERS = {
-	{ display = 8570, size = 0.4, duration = 22, camera = 1.3 }, -- Onyxia
-	{ display = 1149, size = 0.2, duration = 15, camera = 1.4, faction = "Alliance" }, -- flight master's gryphon
-	{ display = 295, size = 0.2, duration = 15, camera = 1.4, faction = "Horde" }, -- wind rider
-	{ display = 3212, size = 0.22, duration = 16, camera = 1.4 }, -- white hippogryph
-	{ display = 2717, size = 0.38, duration = 22, camera = 1.3 }, -- green dragon of the Emerald Dream
-	{ display = 1267, size = 0.11, duration = 12, camera = 1.5 }, -- faerie dragon
-}
--- Classic models fly with Fly; newer high-detail ones (Onyxia, Retail dragons) with FlyRun or FlyWalk.
-local FLIGHT_ANIMATIONS = { 135, 234, 233, 193, 229 } -- Fly, FlyRun, FlyWalk, Hover, FlyStand
-local FLYER_MAX_FAILURES = 2
 
 local MAX_MESSAGES = 200
 
@@ -183,32 +161,6 @@ local function HasAnimation(model, animation)
 	return ok and not issecretvalue(hasAnimation) and hasAnimation == true
 end
 
--- Cool, dim moonlight, so a flyer looks like part of the night sky instead of pasted on top of it.
-local function ApplyMoonlight(model)
-	if not (model.SetLight and CreateVector3D and CreateColor) then
-		return
-	end
-	pcall(model.SetLight, model, true, {
-		omnidirectional = false,
-		point = CreateVector3D(-1, 0, 0),
-		ambientIntensity = 0.6,
-		ambientColor = CreateColor(0.55, 0.62, 0.85),
-		diffuseIntensity = 0.7,
-		diffuseColor = CreateColor(0.8, 0.86, 1),
-	})
-end
-
-local function GetPlayerFaction()
-	if not UnitFactionGroup then
-		return nil
-	end
-	local faction = UnitFactionGroup("player")
-	if issecretvalue(faction) or (faction ~= "Alliance" and faction ~= "Horde") then
-		return nil
-	end
-	return faction
-end
-
 ------------------------------------------------------------------------
 -- Input: only Escape and the Close button close the screen
 ------------------------------------------------------------------------
@@ -327,18 +279,6 @@ function Screen:Create()
 	end
 	galaxy:Hide()
 	self.galaxy = galaxy
-
-	local flyer = CreateFrame("PlayerModel", nil, frame)
-	flyer:SetFrameLevel(level + 6)
-	if flyer.HasScript and flyer:HasScript("OnModelLoaded") then
-		flyer:SetScript("OnModelLoaded", function()
-			Screen:OnFlyerLoaded()
-		end)
-	end
-	flyer:Hide()
-	self.flyer = flyer
-	self.flight = {}
-	self.flyerFailures = {}
 
 	local shade = CreateFrame("Frame", nil, frame)
 	shade:SetAllPoints()
@@ -465,8 +405,7 @@ function Screen:CreateStarfield()
 	end
 end
 
--- Azeroth or one of her moons. Each texture already has a transparent edge and a soft rim,
--- so no masks are needed; the moons add a pulsing additive copy of themselves to glow.
+-- A body in the night sky. Its texture already has a transparent edge and a soft rim, so no mask is needed.
 function Screen:CreateBody(definition)
 	local body = CreateFrame("Frame", nil, self.sky)
 	body.definition = definition
@@ -475,32 +414,6 @@ function Screen:CreateBody(definition)
 	surface:SetAllPoints()
 	surface:SetTexture(definition.texture)
 	body.surface = surface
-
-	if definition.glow then
-		local glow = body:CreateTexture(nil, "ARTWORK", nil, 1)
-		glow:SetAllPoints()
-		glow:SetTexture(definition.texture)
-		glow:SetBlendMode("ADD")
-		body.glow = glow
-
-		local pulse = glow:CreateAnimationGroup()
-		pulse:SetLooping("BOUNCE")
-		local fade = pulse:CreateAnimation("Alpha")
-		fade:SetFromAlpha(1)
-		fade:SetToAlpha(0.55)
-		fade:SetDuration(5 + random() * 2)
-		fade:SetSmoothing("IN_OUT")
-		body.pulse = pulse
-	end
-
-	for _, texture in ipairs({ surface, body.glow }) do
-		if definition.desaturate then
-			texture:SetDesaturated(true)
-		end
-		if definition.tint then
-			texture:SetVertexColor(unpack(definition.tint))
-		end
-	end
 	return body
 end
 
@@ -720,7 +633,7 @@ function Screen:Layout()
 	self:LayoutInfo()
 end
 
--- Azeroth and her moons drift a little over time, the nearer moons further, so the sky never looks frozen.
+-- Azeroth drifts a little over time, so the sky never looks frozen.
 function Screen:PlaceBody(body)
 	local time = self.skyTime or 0
 	local drift = body.definition.drift
@@ -1054,15 +967,6 @@ function Screen:SetSkyShown(shown)
 	end
 	self.skyShown = shown
 	self.sky:SetShown(shown)
-	for _, body in ipairs(self.bodies) do
-		if body.pulse then
-			if shown then
-				body.pulse:Play()
-			else
-				body.pulse:Stop()
-			end
-		end
-	end
 end
 
 function Screen:ApplyBackground()
@@ -1073,7 +977,7 @@ function Screen:ApplyBackground()
 	local stars = mode == "GALAXY" or mode == "AZEROTH" or mode == "STARFIELD"
 	self.starfield:SetShown(stars)
 	self:SetStarsAnimating(stars)
-	-- Azeroth and her moons also stand in for the galaxy where that model doesn't exist (WoW Forever).
+	-- Azeroth also stands in for the galaxy where that model doesn't exist (WoW Forever).
 	self:SetSkyShown(mode == "AZEROTH" or (mode == "GALAXY" and self.galaxyUnavailable == true))
 
 	if mode == "GALAXY" and not self.galaxyUnavailable then
@@ -1101,7 +1005,7 @@ function Screen:LoadGalaxy()
 	end
 end
 
--- The galaxy is a Legion-era model; if this client doesn't have it, show Azeroth and her moons instead.
+-- The galaxy is a Legion-era model; if this client doesn't have it, show Azeroth instead.
 function Screen:VerifyGalaxy(attempt)
 	if not self.active or self.mode ~= "GALAXY" or self.galaxyVerified then
 		return
@@ -1202,153 +1106,6 @@ function Screen:UpdateStreak(elapsed)
 	streak:SetStartPoint("BOTTOMLEFT", self.starfield, headX - state.dx * tail, headY - state.dy * tail)
 	streak:SetEndPoint("BOTTOMLEFT", self.starfield, headX, headY)
 	streak:SetAlpha(sin(progress * pi))
-end
-
-------------------------------------------------------------------------
--- Flybys
-------------------------------------------------------------------------
-
--- Deals the flyers out in shuffled rounds, so every one of them shows up before any repeats.
--- Only the flight master's mount of the player's own faction joins in (both when that isn't known).
-function Screen:NextFlyer()
-	local failures = self.flyerFailures
-	local deck = self.flyerDeck
-	while deck and #deck > 0 do
-		local flyer = tremove(deck)
-		if (failures[flyer.display] or 0) < FLYER_MAX_FAILURES then
-			return flyer
-		end
-	end
-	local faction = GetPlayerFaction()
-	deck = {}
-	for _, flyer in ipairs(FLYERS) do
-		if (failures[flyer.display] or 0) < FLYER_MAX_FAILURES and (not flyer.faction or not faction or flyer.faction == faction) then
-			tinsert(deck, random(#deck + 1), flyer)
-		end
-	end
-	-- No encore: the last flyer of one round doesn't open the next.
-	if #deck > 1 and deck[#deck] == self.lastFlyer then
-		deck[1], deck[#deck] = deck[#deck], deck[1]
-	end
-	self.flyerDeck = deck
-	return tremove(deck)
-end
-
-function Screen:StartFlight()
-	local flyer = self:NextFlyer()
-	if not flyer then
-		-- Nothing can fly in this client; stop trying.
-		self.flybysUnavailable = true
-		return
-	end
-	local model, flight = self.flyer, self.flight
-	local width = self.height * flyer.size
-	model:SetSize(width, width * 0.75)
-	-- Either way across the sky, facing the way it flies.
-	local direction = random() < 0.5 and -1 or 1
-	local margin = width * 0.6
-	flight.fromX = direction < 0 and self.width + margin or -margin
-	flight.toX = direction < 0 and -margin or self.width + margin
-	-- Over the upper half of Azeroth, slowly climbing or sinking.
-	flight.fromY = self.bodies[1].baseY + self.height * (0.02 + random() * 0.12)
-	flight.toY = flight.fromY + self.height * (random() * 0.1 - 0.05)
-	flight.duration = flyer.duration * (0.9 + random() * 0.25)
-	flight.facing = direction * pi / 2
-	flight.flyer = flyer
-	flight.time, flight.waited = 0, 0
-	flight.loaded, flight.active = false, true
-	self.lastFlyer = flyer
-
-	model:ClearAllPoints()
-	model:SetPoint("CENTER", self.sky, "BOTTOMLEFT", flight.fromX, flight.fromY)
-	model:Show()
-	pcall(model.SetDisplayInfo, model, flyer.display)
-	model:SetCamDistanceScale(flyer.camera)
-	model:SetRotation(flight.facing, false)
-	if ModelIsLoaded(model) then
-		self:OnFlyerLoaded()
-	end
-end
-
-function Screen:OnFlyerLoaded()
-	local flight = self.flight
-	if not flight.active or flight.loaded then
-		return
-	end
-	local model = self.flyer
-	local animation
-	for _, id in ipairs(FLIGHT_ANIMATIONS) do
-		if HasAnimation(model, id) then
-			animation = id
-			break
-		end
-	end
-	if not animation then
-		-- Better no flyby than a creature sliding across the sky without flapping its wings.
-		self:EndFlight(FLYER_MAX_FAILURES)
-		return
-	end
-	flight.loaded = true
-	model:SetAnimation(animation)
-	model:SetRotation(flight.facing, false)
-	model:SetCamDistanceScale(flight.flyer.camera)
-	ApplyMoonlight(model)
-end
-
--- failures: how much to hold against this flyer (a missing flying animation rules it out at once).
-function Screen:EndFlight(failures)
-	local flight = self.flight
-	flight.active = false
-	self.flyer:Hide()
-	self.flyer:ClearModel()
-	if failures and flight.flyer then
-		local display = flight.flyer.display
-		self.flyerFailures[display] = (self.flyerFailures[display] or 0) + failures
-	end
-	-- After a failure the next flyer may try soon; after a flight the sky stays quiet for a while.
-	self.nextFlight = failures and (2 + random() * 3) or (70 + random() * 50)
-end
-
-function Screen:UpdateFlight(elapsed)
-	if self.flybysUnavailable then
-		return
-	end
-	local flight = self.flight
-	if not ns.db.dragonFlyby then
-		if flight.active then
-			self:EndFlight()
-		end
-		return
-	end
-	if not flight.active then
-		self.nextFlight = (self.nextFlight or 15) - elapsed
-		if self.nextFlight <= 0 then
-			self:StartFlight()
-		end
-		return
-	end
-
-	-- Wait off-screen until the model is ready, so it never pops up halfway across the sky.
-	if not flight.loaded then
-		flight.waited = flight.waited + elapsed
-		if ModelIsLoaded(self.flyer) then
-			self:OnFlyerLoaded()
-		elseif flight.waited > 8 then
-			self:EndFlight(1)
-		end
-		return
-	end
-
-	flight.time = flight.time + elapsed
-	local progress = flight.time / flight.duration
-	if progress >= 1 then
-		self:EndFlight()
-		return
-	end
-	local x = flight.fromX + (flight.toX - flight.fromX) * progress
-	local y = flight.fromY + (flight.toY - flight.fromY) * progress + sin(flight.time * 1.1) * self.height * 0.01
-	self.flyer:ClearAllPoints()
-	self.flyer:SetPoint("CENTER", self.sky, "BOTTOMLEFT", x, y)
 end
 
 ------------------------------------------------------------------------
@@ -1486,8 +1243,6 @@ function Screen:Show(isPreview)
 	self.targetAlpha = 1
 	self.startTime = (not isPreview and ns.session and ns.session.startTime) or GetTime()
 	self.infoTick, self.clockTick = 0, 0
-	-- In a preview the first flyer comes almost right away, so it can be checked quickly.
-	self.nextFlight = isPreview and 3 or (12 + random() * 8)
 
 	self:ApplyBackground()
 	self:Layout()
@@ -1543,9 +1298,6 @@ function Screen:Finish()
 	self:EndWorldMode()
 	self:SetStarsAnimating(false)
 	self:SetSkyShown(false)
-	if self.flight.active then
-		self:EndFlight()
-	end
 	self.hint.pulse:Stop()
 	ns.CancelTimer("galaxyCheck")
 	self.animTimer, self.animPhase, self.currentAnimation = nil, nil, nil
@@ -1591,12 +1343,6 @@ function Screen:OnUpdate(elapsed)
 		for _, body in ipairs(self.bodies) do
 			self:PlaceBody(body)
 		end
-	end
-	-- Flybys cross Azeroth's sky and the galaxy alike.
-	if self.skyShown or (self.mode == "GALAXY" and self.galaxy:IsShown()) then
-		self:UpdateFlight(elapsed)
-	elseif self.flight.active then
-		self:EndFlight()
 	end
 	self:UpdateCharacter(elapsed)
 	self:UpdateStreak(elapsed)
