@@ -1,10 +1,10 @@
-# AfkDelight 3.2
+# AfkDelight
 
 A beautiful screen while you are `/afk`: your character in the spotlight in front of a galaxy, plus everything you
 want to know at a glance. Rewritten from scratch for **World of Warcraft: Midnight (Retail 12.x)** and
 **World of Warcraft: Forever**.
 
-Originally by Frost-Xavius (Carlos / Frostanon), first released in 2016, when it passed 1,200 downloads on Curse.
+Originally by Frost-Xavius, first released in 2016, when it passed 1,200 downloads on Curse.
 
 ## Compatibility
 
@@ -12,25 +12,6 @@ Originally by Frost-Xavius (Carlos / Frostanon), first released in 2016, when it
 | --- | --- | --- |
 | World of Warcraft: Midnight (Retail) | 12.1.5 (and the 12.1.7 PTR) | `120105`, `120107` |
 | World of Warcraft: Forever | 1.60.1 (beta/test) | `16001` |
-
-Both games run on the modern ("Mainline") client, so one AddOn folder works for both. Every API the addon uses was
-checked against Blizzard's own UI source for **both** clients (live 12.1.5 build 70529 and forever 1.60.1 build 70532).
-
-> **WoW Forever launches on November 4, 2026.** If the launch client reports a new interface number, the AddOn list
-> will mark AfkDelight as "out of date". Tick **Load out of date AddOns**, or add the new number to the
-> `## Interface:` line in `AfkDelight.toc`.
-
-## What changed from 2.0 (7.3 / Legion)
-
-All of the original features still work in modern WoW and are kept: the fullscreen fade-in, the galaxy, your
-transmogged character in the corner, the edge shading and the Close button. The 2.0 code itself no longer loaded
-on modern clients:
-
-* `Texture:SetTexture(r, g, b)` was removed in 7.0, so it now uses `SetColorTexture`.
-* `Texture:SetGradientAlpha` was removed in 10.0, so it now uses `SetGradient` with color objects.
-* Midnight added *secret values*: inside dungeons, raids, Mythic+, encounters and PvP matches the game hides your
-  AFK status and all chat from addons. Reading those values the old way raises Lua errors, so every read is now
-  checked first.
 
 ## Features
 
@@ -82,19 +63,6 @@ on modern clients:
 | `/afkd reset` | Restore all settings to their defaults |
 | `/afkd status` | Show version, game version and whether your AFK status is readable right now |
 
-## Options
-
-* **General**: enable, delay before showing (0-300 sec), don't show inside instances, close for important events,
-  welcome-back summary.
-* **Appearance**: background (Galaxy, Azeroth and her moons, Starfield, Game world, Solid black), creature flybys,
-  game world dimming, camera spin, show character, animation, wave on appear, facing (-180° to 180°, default
-  -110° = the classic pose), slow turn, size (50-150%).
-* **Information**: character info, clock, messages received while away (with Guild and Group tabs), taskbar flash
-  on whispers.
-* **Tools**: Preview and Reset buttons.
-
-Settings are saved account-wide in `AfkDelightDB`.
-
 ## Good to know
 
 * **Dungeons, raids, Mythic+ and PvP matches**: Midnight's addon restrictions (also active on WoW Forever) hide your
@@ -121,62 +89,6 @@ The easiest way is the CurseForge app. To install by hand:
      Mac), then open `Interface\AddOns\` inside that folder.
 3. Make sure the folder is `Interface\AddOns\AfkDelight\AfkDelight.toc` (not nested twice).
 4. Start the game and enable AfkDelight in the AddOn list on the character select screen.
-
-## Localization
-
-Most labels come from the game's own translated strings. Add translations for the rest in `Locales.lua`; there is
-an example block at the bottom of the file.
-
-## Development
-
-The addon files live in the repository root. `tests/` holds an offline test suite that runs AfkDelight on a real
-Lua 5.1 VM against a strict mock of the WoW API, which only accepts methods and events that exist in both Retail and
-WoW Forever.
-
-* Run the tests with `pip install lupa` and then `python tests/run_tests.py`.
-* Every push to `main` that changes the addon runs the tests and, when they pass, uploads a new build to CurseForge
-  (`.github/workflows/curseforge-upload.yml`). The version comes from `## Version:` in `AfkDelight.toc`, and the
-  commit message becomes the CurseForge changelog.
-
-## Changelog
-
-### 3.2.0
-
-* The night sky is now **Azeroth and her moons**, painted with the game's own sky textures (available on Retail and
-  WoW Forever) instead of plain shaded circles, over a richer starfield with faint coloured star dust.
-* **Creature flybys** replace the single Onyxia silhouette, which never appeared on WoW Forever because her model
-  there flies with different animations. Onyxia, your faction's gryphon or wind rider, a white hippogryph, a green
-  dragon and a faerie dragon now take turns, softly moonlit, in both directions, over Azeroth or the galaxy. A
-  preview (`/afkd test`) brings the first one after a few seconds.
-* Missed messages now start right under the tabs and read top to bottom, oldest first, instead of sitting at the
-  bottom of the panel. End (or Shift + mouse wheel down) jumps to the newest page.
-
-### 3.1.0
-
-* The screen now only closes with **Escape** or the **Close** button (or by itself for combat, popups and leaving
-  AFK), so you can read missed messages without closing it by accident. The "close on any key or click" option is
-  gone and existing settings are updated automatically.
-* Missed messages are split into **Whispers**, **Guild** and **Group** tabs, with counts, unread highlighting and
-  keyboard/mouse-wheel scrolling. The panel is always shown (unless turned off), with a note when a tab is empty.
-* New **Night sky of Azeroth** background: the White Lady and the Blue Child with a soft glow, plus an occasional
-  Onyxia silhouette flyby. It replaces the missing galaxy on WoW Forever, and WoW Forever now uses it by default.
-* The welcome-back summary now lists missed whispers, guild and group messages.
-
-### 3.0.0
-
-* Complete rewrite for World of Warcraft: Midnight (12.1.5) and World of Warcraft: Forever (1.60.1).
-* Replaced APIs removed since Legion (`SetTexture(r, g, b)` and `SetGradientAlpha`).
-* Safe handling of Midnight "secret values" for the AFK flag and chat events.
-* New: starfield, game world and solid backgrounds; character animations, facing, size and turntable; character
-  card, leveling info, clock, AFK message, timer, messages while away, taskbar flash and welcome-back summary.
-* New: closes automatically for queue pops, ready checks, invites and other popups, and on combat, movement and
-  cinematics.
-* New: options panel (Settings API), slash commands and an AddOn compartment entry.
-* The galaxy falls back to the starfield when the model doesn't exist.
-
-### 2.0
-
-* TOC update for 7.3.
 
 ## License
 
