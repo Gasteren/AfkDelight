@@ -113,7 +113,8 @@ Settings are saved account-wide in `AfkDelightDB`.
 The easiest way is the CurseForge app. To install by hand:
 
 1. Exit World of Warcraft (or be ready to `/reload`).
-2. Download AfkDelight from CurseForge and copy the `AfkDelight` folder from the zip into the game's AddOns folder:
+2. Download AfkDelight from [CurseForge](https://www.curseforge.com/wow/addons/afkdelight) and copy the `AfkDelight`
+   folder from the zip into the game's AddOns folder:
    * Retail: `World of Warcraft\_retail_\Interface\AddOns\`
    * WoW Forever: the client folder name may change at launch, so let the launcher show it. In the Battle.net
      app, select World of Warcraft: Forever, click the gear next to Play, choose **Show in Explorer** (Finder on
