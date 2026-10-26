@@ -1,0 +1,105 @@
+name: Upload to CurseForge
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".gitattributes"
+      - ".gitignore"
+      - ".github/**"
+      - "tests/**"
+  workflow_dispatch:
+
+env:
+  ADDON: AfkDelight
+  # CurseForge game version(s) for the upload, comma separated. 12.1.5 = Retail (Midnight), 1.60.1 = WoW Forever.
+  GAME_VERSIONS: "12.1.5,1.60.1"
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      # A failing test stops the upload, so a broken change never reaches CurseForge.
+      - name: Run the tests
+        run: |
+          python -m pip install --quiet lupa
+          python tests/run_tests.py
+
+      - name: Read version and CurseForge project ID from the TOC
+        id: toc
+        run: |
+          toc="$ADDON.toc"
+          version=$(sed -n 's/^## Version:[[:space:]]*//p' "$toc" | head -n 1 | tr -d '\r')
+          project=$(sed -n 's/^## X-Curse-Project-ID:[[:space:]]*//p' "$toc" | head -n 1 | tr -d '\r[:space:]')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "project=$project" >> "$GITHUB_OUTPUT"
+          echo "Version $version, CurseForge project $project"
+
+      - name: Create zip
+        run: |
+          mkdir "$ADDON"
+          cp *.lua *.toc "$ADDON/"
+          zip -r "$ADDON.zip" "$ADDON"
+
+      - name: Keep the zip as a build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ADDON }}-${{ steps.toc.outputs.version }}-build${{ github.run_number }}
+          path: ${{ env.ADDON }}.zip
+
+      # The commit message becomes the CurseForge changelog, without the Co-authored-by line.
+      - name: Changelog from the commit message
+        id: changelog
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          text=$(printf '%s\n' "$MESSAGE" | grep -viE '^(co-authored-by|signed-off-by):' || true)
+          if [ -z "$text" ]; then
+            text="Manual release"
+          fi
+          printf '%s\n' "$text"
+          {
+            echo "text<<CHANGELOG_EOF"
+            printf '%s\n' "$text"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check CurseForge settings
+        id: cf
+        env:
+          CF_TOKEN: ${{ secrets.AFKDELIGHT }}
+          PROJECT_ID: ${{ steps.toc.outputs.project }}
+        run: |
+          if [ -z "$CF_TOKEN" ]; then
+            echo "::warning::Repository secret AFKDELIGHT is not set, so the CurseForge upload was skipped."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif ! [[ "$PROJECT_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::Set '## X-Curse-Project-ID:' in $ADDON.toc to your CurseForge project ID, so the CurseForge upload was skipped."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload to CurseForge
+        if: steps.cf.outputs.ready == 'true'
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: "${{ secrets.AFKDELIGHT }}"
+          project_id: "${{ steps.toc.outputs.project }}"
+          game_endpoint: "wow"
+          file_path: "${{ env.ADDON }}.zip"
+          game_versions: "${{ env.GAME_VERSIONS }}"
+          release_type: "release"
+          display_name: "${{ env.ADDON }} v${{ steps.toc.outputs.version }} (build ${{ github.run_number }})"
+          changelog: "${{ steps.changelog.outputs.text }}"
+          changelog_type: "markdown"

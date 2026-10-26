@@ -1,0 +1,6 @@
+# Local test helpers (see tests/run_tests.py)
+.venv/
+__pycache__/
+
+# Build output (GitHub Actions builds the CurseForge zip)
+*.zip
