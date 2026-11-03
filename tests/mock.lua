@@ -39,6 +39,7 @@ local H = {
 	animations = {},
 	lineUpdates = 0,
 	rotations = 0,
+	sounds = {},
 }
 
 local S = {
@@ -82,6 +83,9 @@ local FSO, OBJ, SR, SRR, AO = W.SimpleFrameScriptObjectAPI, W.SimpleObjectAPI, W
 local METHODS = {
 	Frame = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleFrameAPI),
 	Button = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleFrameAPI, W.SimpleButtonAPI),
+	CheckButton = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleFrameAPI, W.SimpleButtonAPI, W.SimpleCheckboxAPI),
+	Slider = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleFrameAPI, W.SimpleSliderAPI),
+	ScrollFrame = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleFrameAPI, W.SimpleScrollFrameAPI),
 	PlayerModel = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleFrameAPI, W.SimpleModelAPI, W.FrameAPICharacterModelBase),
 	ScrollingMessageFrame = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleFrameAPI, apiLists.smf),
 	Texture = ToSet(FSO, OBJ, SR, SRR, AO, W.SimpleRegionAPI, W.SimpleTextureBaseAPI, W.SimpleTextureAPI),
@@ -96,9 +100,13 @@ local METHODS = {
 }
 
 local FRAME_SCRIPTS = { "OnEvent", "OnUpdate", "OnShow", "OnHide", "OnKeyDown", "OnKeyUp", "OnMouseDown", "OnMouseUp", "OnMouseWheel", "OnEnter", "OnLeave", "OnSizeChanged", "OnLoad" }
+local BUTTON_SCRIPTS = { "OnClick", "PreClick", "PostClick", "OnDoubleClick" }
 local SCRIPTS = {
 	Frame = ToSet(FRAME_SCRIPTS),
-	Button = ToSet(FRAME_SCRIPTS, { "OnClick", "PreClick", "PostClick", "OnDoubleClick" }),
+	Button = ToSet(FRAME_SCRIPTS, BUTTON_SCRIPTS),
+	CheckButton = ToSet(FRAME_SCRIPTS, BUTTON_SCRIPTS),
+	Slider = ToSet(FRAME_SCRIPTS, { "OnValueChanged", "OnMinMaxChanged" }),
+	ScrollFrame = ToSet(FRAME_SCRIPTS, { "OnHorizontalScroll", "OnVerticalScroll", "OnScrollRangeChanged" }),
 	PlayerModel = ToSet(FRAME_SCRIPTS, { "OnModelLoaded", "OnAnimFinished", "OnAnimStarted" }),
 	ScrollingMessageFrame = ToSet(FRAME_SCRIPTS, { "OnHyperlinkClick", "OnHyperlinkEnter", "OnHyperlinkLeave" }),
 	AnimationGroup = ToSet({ "OnPlay", "OnFinished", "OnStop", "OnLoop", "OnPause", "OnUpdate" }),
@@ -263,6 +271,51 @@ function Impl.SetPropagateKeyboardInput(self, propagate)
 	if S.combat then error("ADDON_ACTION_BLOCKED: SetPropagateKeyboardInput() in combat") end
 	self.__propagate = propagate
 end
+
+-- Buttons, check buttons, sliders and scroll frames ---------------------
+function Impl.SetEnabled(self, enabled) assert(type(enabled) == "boolean", "SetEnabled needs a boolean"); self.__disabled = not enabled end
+function Impl.Enable(self) self.__disabled = false end
+function Impl.Disable(self) self.__disabled = true end
+function Impl.IsEnabled(self) return not self.__disabled end
+function Impl.SetChecked(self, checked)
+	assert(checked == nil or type(checked) == "boolean", "SetChecked needs a boolean")
+	self.__checked = checked == true
+end
+function Impl.GetChecked(self) return self.__checked == true end
+-- Like a mouse click: nothing happens while disabled, and a check button toggles itself before OnClick.
+function Impl.Click(self, button)
+	assert(IsVisible(self), "clicked a button that isn't shown")
+	if self.__disabled then return end
+	if self.__type == "CheckButton" then
+		self.__checked = not self.__checked
+	end
+	RunScript(self, "OnClick", button or "LeftButton", false)
+end
+function Impl.SetMinMaxValues(self, minValue, maxValue)
+	assert(IsNumber(minValue) and IsNumber(maxValue) and minValue <= maxValue, "bad slider range")
+	self.__min, self.__max = minValue, maxValue
+end
+function Impl.GetMinMaxValues(self) return self.__min or 0, self.__max or 0 end
+function Impl.SetValueStep(self, step) assert(IsNumber(step) and step > 0, "bad slider step"); self.__step = step end
+function Impl.GetValueStep(self) return self.__step or 0 end
+function Impl.SetObeyStepOnDrag(self, obey) assert(obey == nil or type(obey) == "boolean") end
+-- The real slider clamps the value and only fires OnValueChanged when it changes.
+function Impl.SetValue(self, value)
+	assert(IsNumber(value), "bad slider value " .. tostring(value))
+	value = math.min(math.max(value, self.__min or value), self.__max or value)
+	if value ~= self.__value then
+		self.__value = value
+		RunScript(self, "OnValueChanged", value, false)
+	end
+end
+function Impl.GetValue(self) return self.__value or 0 end
+function Impl.SetScrollChild(self, child) assert(type(child) == "table" and child.__type == "Frame", "bad scroll child"); self.__scrollChild = child end
+function Impl.GetScrollChild(self) return self.__scrollChild end
+function Impl.SetHitRectInsets(self, left, right, top, bottom)
+	assert(IsNumber(left) and IsNumber(right) and IsNumber(top) and IsNumber(bottom), "bad hit rect insets")
+end
+function Impl.DesaturateHierarchy(self, desaturation) assert(IsNumber(desaturation) and desaturation >= 0 and desaturation <= 1, "bad desaturation") end
+function Impl.SetWordWrap(self, wrap) assert(type(wrap) == "boolean", "SetWordWrap needs a boolean") end
 
 -- Events ----------------------------------------------------------------
 function Impl.RegisterEvent(self, event)
@@ -554,104 +607,156 @@ MovieFrame = New("Frame", "MovieFrame", UIParent)
 MovieFrame:Hide()
 GameTooltip = New("GameTooltip", "GameTooltip", UIParent)
 GameTooltip:Hide()
+-- The tooltip Blizzard's own settings use; AfkDelight never touches it (see the options page tests).
+SettingsTooltip = New("GameTooltip", "SettingsTooltip", UIParent)
+SettingsTooltip:Hide()
 ChatFontNormal = New("Font", "ChatFontNormal")
 
+-- Templates the addon uses, with just enough of each to behave like the real one (see the forever UI source).
+local TEMPLATE_TYPES = {
+	UIPanelButtonTemplate = "Button",
+	SettingsCheckboxTemplate = "CheckButton",
+	UIRadioButtonTemplate = "CheckButton",
+	MinimalSliderWithSteppersTemplate = "Frame",
+	ScrollFrameTemplate = "ScrollFrame",
+}
+local TEMPLATES = {}
+
+-- DefaultTooltipMixin: hovering shows the game's SettingsTooltip.
+function TEMPLATES.SettingsCheckboxTemplate(frame)
+	frame.HoverBackground = New("Texture", nil, frame)
+	frame.__scripts.OnEnter = function(self)
+		SettingsTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		SettingsTooltip:Show()
+	end
+	frame.__scripts.OnLeave = function()
+		SettingsTooltip:Hide()
+	end
+end
+
+function TEMPLATES.UIRadioButtonTemplate(frame, name)
+	assert(type(name) == "string", "UIRadioButtonTemplate names its label $parentText, so the button needs a name")
+	frame.text = New("FontString", name .. "Text", frame)
+end
+
+-- ScrollFrame_OnLoad adds a MinimalScrollBar.
+function TEMPLATES.ScrollFrameTemplate(frame)
+	frame.ScrollBar = New("Frame", nil, frame)
+end
+
+-- MinimalSliderWithSteppersMixin (Blizzard_SharedXML/Shared/Slider/MinimalSlider.lua).
+function TEMPLATES.MinimalSliderWithSteppersTemplate(frame)
+	frame.Slider = New("Slider", nil, frame)
+	frame.Back, frame.Forward = New("Button", nil, frame), New("Button", nil, frame)
+	frame.Labels = {}
+	for index, key in ipairs({ "LeftText", "RightText", "TopText", "MinText", "MaxText" }) do
+		frame[key] = New("FontString", nil, frame)
+		frame[key]:Hide()
+		frame.Labels[index] = frame[key]
+	end
+	frame.__callbacks = {}
+	function frame:RegisterCallback(event, callback, owner)
+		assert(MinimalSliderWithSteppersMixin.Event[event] and type(callback) == "function" and owner ~= nil, "bad RegisterCallback")
+		table.insert(self.__callbacks, { event = event, callback = callback, owner = owner })
+	end
+	function frame:TriggerEvent(event, ...)
+		for _, entry in ipairs(self.__callbacks) do
+			if entry.event == event then entry.callback(entry.owner, ...) end
+		end
+	end
+	function frame:FormatValue(value)
+		for labelID, formatter in pairs(self.formatters or {}) do
+			local label = self.Labels[labelID]
+			if label then
+				label:SetText(formatter(value))
+				label:Show()
+			end
+		end
+	end
+	function frame:Init(value, minValue, maxValue, steps, formatters)
+		assert(IsNumber(steps) and steps > 0, "bad slider steps")
+		self.Slider:SetMinMaxValues(minValue, maxValue)
+		self.Slider:SetValueStep((maxValue - minValue) / steps)
+		self.Slider:SetValue(value)
+		self.formatters = formatters
+		self:FormatValue(value)
+		self.Slider:SetScript("OnValueChanged", function(_, newValue)
+			self:FormatValue(newValue)
+			self:TriggerEvent(MinimalSliderWithSteppersMixin.Event.OnValueChanged, newValue)
+		end)
+	end
+	function frame:SetEnabled(enabled)
+		assert(type(enabled) == "boolean", "SetEnabled needs a boolean")
+		self.sliderEnabled = enabled
+		self.Slider:SetEnabled(enabled)
+		self.Back:SetEnabled(enabled)
+		self.Forward:SetEnabled(enabled)
+	end
+	function frame:IsSliderEnabled() return self.sliderEnabled ~= false end
+	function frame:SetValue(value) self.Slider:SetValue(value) end
+	frame.Back:SetScript("OnClick", function() frame.Slider:SetValue(frame.Slider:GetValue() - frame.Slider:GetValueStep()) end)
+	frame.Forward:SetScript("OnClick", function() frame.Slider:SetValue(frame.Slider:GetValue() + frame.Slider:GetValueStep()) end)
+end
+
+local FRAME_TYPES = ToSet({ "Frame", "Button", "CheckButton", "ScrollFrame", "PlayerModel", "ScrollingMessageFrame" })
 function CreateFrame(frameType, name, parent, template)
-	assert(frameType == "Frame" or frameType == "Button" or frameType == "PlayerModel" or frameType == "ScrollingMessageFrame", "unexpected frame type " .. tostring(frameType))
-	assert(template == nil or (template == "UIPanelButtonTemplate" and frameType == "Button"), "unexpected template " .. tostring(template))
+	assert(FRAME_TYPES[frameType], "unexpected frame type " .. tostring(frameType))
+	assert(template == nil or TEMPLATE_TYPES[template] == frameType, "unexpected template " .. tostring(template) .. " for a " .. tostring(frameType))
+	assert(name == nil or type(name) == "string", "bad frame name")
 	assert(parent == nil or type(parent) == "table", "bad parent")
-	return New(frameType, name, parent)
+	local frame = New(frameType, name, parent)
+	if TEMPLATES[template] then
+		TEMPLATES[template](frame, name)
+	end
+	return frame
 end
 
 -- Settings API --------------------------------------------------------------
-H.settings = { list = {}, byVariable = {}, initializers = {} }
-
-local SettingMixin = {}
-SettingMixin.__index = SettingMixin
-function SettingMixin:GetValue() return self.tbl[self.key] end
-function SettingMixin:SetValue(value)
-	if type(value) ~= self.varType then
-		error(string.format("SetValue '%s' requires '%s' type, not '%s' type.", self.name, self.varType, type(value)))
-	end
-	self.tbl[self.key] = value
-	for _, callback in ipairs(self.callbacks) do callback(self, value) end
-end
-function SettingMixin:SetValueChangedCallback(callback) table.insert(self.callbacks, callback) end
-function SettingMixin:GetVariable() return self.variable end
-function SettingMixin:GetVariableType() return self.varType end
-function SettingMixin:GetDefaultValue() return self.default end
-
-local Initializer = {}
-Initializer.__index = Initializer
-function Initializer:SetParentInitializer(parent, predicate)
-	assert(type(parent) == "table" and parent ~= self, "bad parent initializer")
-	assert(predicate == nil or type(predicate) == "function", "bad modify predicate")
-	self.parent, self.predicate = parent, predicate
-end
-function Initializer:GetSetting() return self.setting end
-
-local function AddInitializer(kind, setting, options, tooltip)
-	local initializer = setmetatable({ kind = kind, setting = setting, options = options, tooltip = tooltip }, Initializer)
-	table.insert(H.settings.layout.initializers, initializer)
-	return initializer
-end
+H.settings = {}
 
 Settings = {
-	RegisterVerticalLayoutCategory = function(name)
+	RegisterCanvasLayoutCategory = function(frame, name)
+		assert(type(frame) == "table" and frame.__type == "Frame", "a canvas category needs a frame")
 		assert(type(name) == "string" and not H.settings.category, "bad or duplicate category")
 		local category = { name = name, ID = 9001 }
 		function category:GetID() return self.ID end
-		local layout = { initializers = {} }
-		function layout:AddInitializer(initializer) assert(type(initializer) == "table"); table.insert(self.initializers, initializer) end
-		H.settings.category, H.settings.layout = category, layout
-		return category, layout
-	end,
-	RegisterAddOnSetting = function(category, variable, key, tbl, varType, name, default)
-		assert(category == H.settings.category, "unknown category")
-		assert(type(variable) == "string" and not H.settings.byVariable[variable], "bad or duplicate variable " .. tostring(variable))
-		assert(type(tbl) == "table", "'variableTbl' argument must be a table.")
-		assert(type(varType) == "string" and type(name) == "string", "bad setting type or name")
-		assert(type(default) == varType, "default type mismatch for " .. variable)
-		if tbl[key] == nil then tbl[key] = default end
-		local setting = setmetatable({ variable = variable, key = key, tbl = tbl, varType = varType, name = name, default = default, callbacks = {} }, SettingMixin)
-		H.settings.byVariable[variable] = setting
-		table.insert(H.settings.list, setting)
-		return setting
-	end,
-	CreateCheckbox = function(category, setting, tooltip)
-		assert(setting.varType == "boolean", "checkbox needs a boolean setting")
-		return AddInitializer("checkbox", setting, nil, tooltip)
-	end,
-	CreateSlider = function(category, setting, options, tooltip)
-		assert(setting.varType == "number" and options, "slider needs a number setting and options")
-		return AddInitializer("slider", setting, options, tooltip)
-	end,
-	CreateDropdown = function(category, setting, options, tooltip)
-		assert(options ~= nil, "dropdown needs options")
-		return AddInitializer("dropdown", setting, options, tooltip)
-	end,
-	CreateSliderOptions = function(minValue, maxValue, rate)
-		local options = { minValue = minValue, maxValue = maxValue, steps = (maxValue - minValue) / rate, formatters = {} }
-		function options:SetLabelFormatter(labelType, formatter) self.formatters[labelType] = formatter end
-		return options
-	end,
-	CreateControlTextContainer = function()
-		local container = { data = {} }
-		function container:Add(value, label, tooltip) table.insert(self.data, { value = value, label = label, text = label, tooltip = tooltip }) end
-		function container:GetData() return self.data end
-		return container
+		H.settings.category, H.settings.canvas = category, frame
+		return category, { frame = frame }
 	end,
 	RegisterAddOnCategory = function(category) H.settings.registered = category end,
 	OpenToCategory = function(categoryID) table.insert(H.opened, categoryID) end,
 }
-MinimalSliderWithSteppersMixin = { Label = { Left = 1, Right = 2, Top = 3, Min = 4, Max = 5 } }
-function CreateSettingsListSectionHeaderInitializer(name)
-	assert(type(name) == "string")
-	return setmetatable({ kind = "header", name = name }, Initializer)
+-- Vertical layouts turn options into rows of Blizzard's shared settings list, which the options search reads and
+-- whose frames Blizzard's own rows reuse; on WoW Forever that taint blocked C_Discord.IsUserOAuthed().
+local SHARED_LIST_APIS = {
+	"RegisterVerticalLayoutCategory", "RegisterAddOnSetting", "RegisterInitializer", "CreateCheckbox", "CreateSlider", "CreateDropdown",
+}
+for _, api in ipairs(SHARED_LIST_APIS) do
+	Settings[api] = function()
+		error("Settings." .. api .. " adds rows to Blizzard's shared settings list; AfkDelight keeps its options on its own canvas", 2)
+	end
 end
-function CreateSettingsButtonInitializer(name, buttonText, onClick, tooltip, addSearchTags)
-	assert(type(name) == "string" and type(buttonText) == "string" and type(onClick) == "function")
-	return setmetatable({ kind = "button", name = name, onClick = onClick }, Initializer)
+function CreateSettingsListSectionHeaderInitializer() error("rows of Blizzard's shared settings list are off limits", 2) end
+function CreateSettingsButtonInitializer() error("rows of Blizzard's shared settings list are off limits", 2) end
+
+MinimalSliderWithSteppersMixin = {
+	Label = { Left = 1, Right = 2, Top = 3, Min = 4, Max = 5 },
+	Event = { OnValueChanged = "OnValueChanged", OnInteractStart = "OnInteractStart", OnInteractEnd = "OnInteractEnd" },
+}
+function CreateMinimalSliderFormatter(labelType, value)
+	assert(IsNumber(labelType), "bad label type")
+	if value == nil then
+		return function(v) return v end
+	elseif type(value) == "function" then
+		return value
+	end
+	return function() return value end
+end
+
+SOUNDKIT = { IG_MAINMENU_OPTION_CHECKBOX_ON = 856, IG_MAINMENU_OPTION_CHECKBOX_OFF = 857 }
+function PlaySound(soundKitID)
+	assert(IsNumber(soundKitID), "bad sound kit " .. tostring(soundKitID))
+	H.sounds[#H.sounds + 1] = soundKitID
 end
 
 -- Game state API ------------------------------------------------------------
@@ -665,7 +770,13 @@ end
 function IsShiftKeyDown() return S.shift end
 C_ClassColor = { GetClassColor = function(classFile) assert(type(classFile) == "string"); return CreateColor(0.25, 0.78, 0.92, 1) end }
 RAID_CLASS_COLORS = setmetatable({}, { __index = function(_, classFile) return C_ClassColor.GetClassColor(classFile) end })
-C_Texture = { GetAtlasInfo = function(atlas) if type(atlas) == "string" and atlas:match("^classicon%-%l+$") then return { width = 64, height = 64 } end end }
+C_Texture = {
+	GetAtlasInfo = function(atlas)
+		if type(atlas) == "string" and (atlas:match("^classicon%-%l+$") or atlas == "Options_HorizontalDivider") then
+			return { width = 64, height = 64 }
+		end
+	end,
+}
 C_ChatInfo = { InChatMessagingLockdown = function() return S.lockdown end }
 C_PetBattles = { IsInBattle = function() return S.petBattle end }
 C_EventUtils = { IsEventValid = function(event) return validEvents[event] == true end }

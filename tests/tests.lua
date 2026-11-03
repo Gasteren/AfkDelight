@@ -87,53 +87,45 @@ step("load, saved variables, options panel", function()
 	check(ns.isForever == false, "detected retail")
 	check(ns.db.background == "AZEROTH", "retail starts with spinning Azeroth")
 	check(ns.db.dbVersion == 4 and ns.db.dismissOnInput == nil, "current settings version")
-	local count = 0
 	for key, default in pairs(ns.defaults) do
-		count = count + 1
 		check(ns.db[key] == default, "default for " .. key)
-		check(H.settings.byVariable["AfkDelight_" .. key], "setting registered for " .. key)
 	end
-	check(#H.settings.list == count, "one setting per option")
-	check(H.settings.registered == H.settings.category, "category registered")
+	check(H.settings.canvas == ns.Options.panel and H.settings.registered == H.settings.category, "options page registered")
 	check(H.IsRegistered("PLAYER_FLAGS_CHANGED") and H.IsRegistered("READY_CHECK") and H.IsRegistered("ADDON_RESTRICTION_STATE_CHANGED"), "runtime events registered")
 	check(not H.IsRegistered("CHAT_MSG_WHISPER"), "chat events only while AFK")
 	check(not Screen:IsActive(), "no screen while not AFK")
 end)
 
-step("options panel controls are valid", function()
+step("options page has the right control for every setting", function()
+	local Options = ns.Options
 	local kinds = {}
-	for _, init in ipairs(H.settings.layout.initializers) do
-		kinds[init.kind] = (kinds[init.kind] or 0) + 1
-		if init.kind == "slider" then
-			local formatter = init.options.formatters[MinimalSliderWithSteppersMixin.Label.Right]
-			check(type(formatter) == "function", "slider formatter")
-			for _, value in ipairs({ init.options.minValue, init.options.maxValue, 0, 37.4 }) do
-				check(type(formatter(value)) == "string", "formatter output")
+	for _, row in ipairs(Options.rows) do
+		kinds[row.kind] = (kinds[row.kind] or 0) + 1
+	end
+	check(kinds.header == 4 and kinds.checkbox == 14 and kinds.slider == 4 and kinds.choice == 2 and kinds.button == 2, "control mix")
+	local KIND = { boolean = "checkbox", number = "slider", string = "choice" }
+	for key, default in pairs(ns.defaults) do
+		local row = Options.byKey[key]
+		check(row and row.kind == KIND[type(default)], "a " .. KIND[type(default)] .. " for " .. key)
+	end
+	for key, row in pairs(Options.byKey) do
+		check(ns.defaults[key] ~= nil, "only real settings on the page: " .. key)
+		if row.kind == "slider" then
+			local range, minValue, maxValue = ns.ranges[key], row.control.Slider:GetMinMaxValues()
+			check(minValue == range[1] and maxValue == range[2] and row.control.Slider:GetValueStep() == 5, "range of " .. key)
+			local formatter = row.control.formatters[MinimalSliderWithSteppersMixin.Label.Right]
+			for _, value in ipairs({ range[1], range[2], 0, 37.4 }) do
+				check(type(formatter(value)) == "string", "value label of " .. key)
 			end
-		elseif init.kind == "dropdown" then
-			local data = init.options()
-			local found = false
-			for _, option in ipairs(data) do
-				check(type(option.value) == "string" and type(option.label) == "string", "dropdown entry")
-				found = found or option.value == init.setting:GetValue()
+		elseif row.kind == "choice" then
+			local values = key == "background" and ns.BACKGROUNDS or ns.ANIMATIONS
+			check(#row.buttons == #values, "every choice for " .. key)
+			for index, value in ipairs(values) do
+				local button = row.buttons[index]
+				check(button.value == value and type(button.text:GetText()) == "string", "choice " .. value)
 			end
-			check(found, "current dropdown value listed")
-		end
-		if init.predicate then
-			check(type(init.predicate()) == "boolean", "predicate returns a boolean")
 		end
 	end
-	check(kinds.header == 4 and kinds.button == 2 and kinds.dropdown == 2 and kinds.slider == 4, "control mix")
-	local backgrounds = {}
-	for _, init in ipairs(H.settings.layout.initializers) do
-		if init.kind == "dropdown" and init.setting.key == "background" then
-			for _, option in ipairs(init.options()) do backgrounds[option.value] = true end
-		end
-	end
-	check(backgrounds.AZEROTH and backgrounds.STARFIELD and backgrounds.WORLD and backgrounds.SOLID, "all backgrounds offered")
-	check(not backgrounds.GALAXY, "galaxy background removed")
-	check(H.settings.byVariable.AfkDelight_dismissOnInput == nil, "close-on-any-key option removed")
-	check(H.settings.byVariable.AfkDelight_dragonFlyby == nil, "creature flyby option removed")
 	check(L.Formatters == "Formatters", "missing locale keys fall back to the key")
 end)
 
@@ -631,19 +623,96 @@ step("slash commands", function()
 	check(printedSince(before, L.MSG_RESET), "reset message")
 end)
 
-step("options panel buttons", function()
-	for _, init in ipairs(H.settings.layout.initializers) do
-		if init.kind == "button" and init.name == L.OPT_PREVIEW then
-			init.onClick()
-			check(Screen:IsActive() and Screen.preview, "preview button")
-			init.onClick()
-			check(not Screen:IsActive(), "preview button toggles")
-		elseif init.kind == "button" and init.name == L.OPT_RESET then
-			ns.db.delay = 120
-			init.onClick()
-			check(ns.db.delay == 0, "reset button")
+step("the options page changes settings and keeps to its own frames", function()
+	local Options = ns.Options
+	local function Row(key)
+		return Options.byKey[key]
+	end
+	local function ToolButton(name)
+		for _, row in ipairs(Options.rows) do
+			if row.kind == "button" and row.label:GetText() == name then
+				return row.control
+			end
 		end
 	end
+	-- What the Settings panel does to show the page.
+	Options.panel:Show()
+	Options.panel:OnRefresh()
+	local enabled, delay = Row("enabled"), Row("delay")
+	check(enabled.control:GetChecked() and delay.control:IsSliderEnabled() and delay.control.Slider:GetValue() == 0, "shows the saved settings")
+	check(delay.control.RightText:GetText() == L.OPT_INSTANT, "slider value label")
+
+	-- A checkbox, and the options that depend on it.
+	enabled.control:Click()
+	check(ns.db.enabled == false and H.sounds[#H.sounds] == SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF, "unchecked: screen off")
+	check(not delay.control:IsSliderEnabled() and not Row("disableInInstances").control:IsEnabled(), "its options greyed out")
+	H.RunScript(enabled.hover, "OnMouseUp", "LeftButton")
+	check(ns.db.enabled == true and delay.control:IsSliderEnabled(), "clicking the label turns it back on")
+
+	-- A slider: dragged values snap to its steps, and the arrows step by 5.
+	delay.control.Slider:SetValue(37.4)
+	check(ns.db.delay == 35 and delay.control.Slider:GetValue() == 35 and delay.control.RightText:GetText() == "35 sec", "dragged to 35 sec")
+	delay.control.Forward:Click()
+	check(ns.db.delay == 40, "arrow steps by 5")
+	SlashCmdList.AFKDELIGHT("reset")
+	check(delay.control.Slider:GetValue() == 0 and delay.control.RightText:GetText() == L.OPT_INSTANT, "follows changes made elsewhere")
+
+	-- Radio buttons: one choice at a time; the game world options only count with that background.
+	local background = Row("background")
+	local world = background.buttons[3]
+	world:Click()
+	check(ns.db.background == "WORLD" and Row("worldDim").control:IsSliderEnabled() and Row("cameraSpin").control:IsEnabled(), "game world chosen")
+	for _, button in ipairs(background.buttons) do
+		check(button:GetChecked() == (button == world), "one choice at a time")
+	end
+	world:Click()
+	check(world:GetChecked() and ns.db.background == "WORLD", "clicking the chosen one keeps it")
+	background.buttons[1]:Click()
+	check(ns.db.background == "AZEROTH" and not Row("worldDim").control:IsSliderEnabled() and not Row("cameraSpin").control:IsEnabled(), "back to Azeroth")
+
+	Row("showModel").control:Click()
+	check(not Row("animation").buttons[1]:IsEnabled() and not Row("modelScale").control:IsSliderEnabled() and not Row("introWave").control:IsEnabled(), "character options greyed out")
+	Row("showModel").control:Click()
+	Row("animation").buttons[3]:Click()
+	check(ns.db.animation == "DANCE" and Row("animation").buttons[1]:IsEnabled(), "animation picked")
+	Row("showChat").control:Click()
+	check(not Row("chatGuild").control:IsEnabled() and not Row("chatGroup").control:IsEnabled(), "chat tabs greyed out")
+	Row("showChat").control:Click()
+
+	-- Every tooltip is GameTooltip: the SettingsTooltip of the game's own settings is never touched.
+	local function Hover(frame, title)
+		H.RunScript(frame, "OnEnter")
+		check(GameTooltip:IsShown() and GameTooltip.__owner == frame, "tooltip for " .. tostring(title))
+		H.RunScript(frame, "OnLeave")
+		check(not GameTooltip:IsShown(), "tooltip hidden")
+	end
+	for _, row in ipairs(Options.rows) do
+		if row.hover then
+			Hover(row.hover, row.label:GetText())
+		end
+		if row.kind == "checkbox" or row.kind == "button" then
+			Hover(row.control, row.label:GetText())
+		end
+		for _, button in ipairs(row.buttons or {}) do
+			Hover(button, button.text:GetText())
+		end
+	end
+	check(SettingsTooltip.__owner == nil and not SettingsTooltip:IsShown(), "SettingsTooltip left alone")
+
+	local preview = ToolButton(L.OPT_PREVIEW)
+	preview:Click()
+	check(Screen:IsActive() and Screen.preview, "preview button")
+	preview:Click()
+	check(not Screen:IsActive(), "preview button toggles")
+	ns:SetOption("delay", 120)
+	ToolButton(L.OPT_RESET):Click()
+	check(ns.db.delay == 0 and ns.db.animation == "RANDOM" and delay.control.Slider:GetValue() == 0, "reset button")
+
+	-- The Settings panel's "Defaults" > "All Settings" resets AfkDelight too.
+	ns:SetOption("showClock", false)
+	Options.panel:OnDefault()
+	check(ns.db.showClock == true and Row("showClock").control:GetChecked(), "all settings to defaults")
+	Options.panel:Hide()
 end)
 
 step("addon compartment", function()
@@ -699,7 +768,7 @@ step("load on WoW Forever", function()
 	Load()
 	check(ns.isForever == true, "detected Forever")
 	check(ns.db.background == "AZEROTH", "Forever starts with spinning Azeroth too")
-	check(#H.settings.list > 0, "options registered")
+	check(H.settings.canvas == ns.Options.panel and H.settings.registered == H.settings.category, "options page registered")
 end)
 
 step("Forever character info: surname and leveling", function()

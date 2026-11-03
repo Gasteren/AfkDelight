@@ -17,13 +17,13 @@ globals = {
 -- WoW API used directly (each one verified against the live 12.1.5 and forever 1.60.1 UI source).
 read_globals = {
 	"Ambiguate", "C_AddOns", "C_ChatInfo", "C_ClassColor", "C_EventUtils", "C_PetBattles", "C_PlayerInfo",
-	"C_Texture", "C_Timer", "CreateColor", "CreateFrame", "CreateSettingsButtonInitializer",
-	"CreateSettingsListSectionHeaderInitializer", "FlashClientIcon", "GameTooltip", "GetAverageItemLevel",
+	"C_Texture", "C_Timer", "CreateColor", "CreateFrame", "CreateMinimalSliderFormatter",
+	"FlashClientIcon", "GameTooltip", "GetAverageItemLevel",
 	"GetBattlefieldStatus", "GetBindingByKey", "GetBuildInfo", "GetCurrentTitle", "GetGuildInfo", "GetLocale",
 	"GetMaxLevelForPlayerExpansion", "GetMoney", "GetPlayerInfoByGUID", "GetRealZoneText", "GetSpecialization",
 	"GetSpecializationInfo", "GetSubZoneText", "GetTime", "IsShiftKeyDown", "GetTitleName", "GetXPExhaustion", "GetZoneText",
 	"InCombatLockdown", "IsInGuild", "IsInInstance", "IsResting", "IsXPUserDisabled",
-	"MinimalSliderWithSteppersMixin", "Settings", "UIParent", "UnitAffectingCombat", "UnitCastingInfo",
+	"MinimalSliderWithSteppersMixin", "PlaySound", "Settings", "SOUNDKIT", "UIParent", "UnitAffectingCombat", "UnitCastingInfo",
 	"UnitChannelInfo", "UnitClass", "UnitIsAFK", "UnitLevel", "UnitName", "UnitRace", "UnitXP", "UnitXPMax",
 	"date", "geterrorhandler", "strtrim",
 }
