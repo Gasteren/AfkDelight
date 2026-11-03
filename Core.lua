@@ -126,12 +126,10 @@ function ns:InitDB()
 	self.db = db
 end
 
--- Changes go through the Settings API when possible so the options panel stays in sync.
+-- Every change goes through here, so the options page and the AFK screen follow it.
 function ns:SetOption(key, value)
-	if not (self.Options and self.Options:SetValue(key, value)) then
-		self.db[key] = value
-		self:OnSettingChanged(key)
-	end
+	self.db[key] = value
+	self:OnSettingChanged(key)
 end
 
 function ns:SetEnabled(enabled)
@@ -147,6 +145,9 @@ function ns:ResetSettings()
 end
 
 function ns:OnSettingChanged(key)
+	if self.Options then
+		self.Options:Refresh()
+	end
 	if not self.loggedIn then
 		return
 	end
