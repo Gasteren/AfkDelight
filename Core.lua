@@ -28,7 +28,7 @@ local issecretvalue = _G.issecretvalue or function() return false end
 ns.issecretvalue = issecretvalue
 
 ns.title = "|cff00ccffAfkDelight|r"
-ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")) or "1.0.0"
+ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")) or "1.0.1"
 
 local tocVersion = select(4, GetBuildInfo()) or 0
 ns.tocVersion = tocVersion

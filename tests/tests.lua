@@ -608,7 +608,7 @@ step("slash commands", function()
 	check(#H.opened == 2, "options command is case-insensitive")
 	before = #H.printed
 	SlashCmdList.AFKDELIGHT("status")
-	check(printedSince(before, "Version 1.0.0, World of Warcraft (Retail) (interface 120105). Screen enabled. AFK status: No."), "status " .. tostring(H.printed[#H.printed]))
+	check(printedSince(before, "Version 1.0.1, World of Warcraft (Retail) (interface 120105). Screen enabled. AFK status: No."), "status " .. tostring(H.printed[#H.printed]))
 	before = #H.printed
 	SlashCmdList.AFKDELIGHT("whatever")
 	check(printedSince(before, "/afkd test"), "help")
