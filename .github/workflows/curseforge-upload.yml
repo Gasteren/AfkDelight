@@ -14,8 +14,8 @@ on:
 
 env:
   ADDON: AfkDelight
-  # CurseForge game version(s) for the upload, comma separated. 12.1.5 = Retail (Midnight), 1.60.1 = WoW Forever.
-  GAME_VERSIONS: "12.1.5,1.60.1"
+  # CurseForge game version(s) for the upload, comma separated. 12.1.5 and 12.1.7 = Retail (Midnight), 1.60.1 = WoW Forever.
+  GAME_VERSIONS: "12.1.5,12.1.7,1.60.1"
 
 jobs:
   upload:
